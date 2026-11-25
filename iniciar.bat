@@ -1,10 +1,15 @@
 @echo off
-title TRAINING - App de Gimnasio para Instructores
+title TRAINING - Mi Bitacora Personal de Entrenamiento
 echo =======================================================
-echo          TRAINING - Fitness Coach Micro App
+echo     TRAINING - Bitacora y Calendario Personal
 echo =======================================================
-echo Iniciando servidor Flask en http://localhost:5000 ...
+echo Iniciando servidor en http://localhost:5000 ...
 echo Presiona Ctrl + C en esta ventana para detener.
 echo.
-python app.py
+where py >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    py -3 app.py
+) else (
+    python app.py
+)
 pause

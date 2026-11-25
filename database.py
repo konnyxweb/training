@@ -133,6 +133,28 @@ def init_db():
             )
         ''')
 
+        # Tabla de Ejercicios del Día (Calendario Personal & Bitácora de Cargas)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_workout_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                exercise_id INTEGER,
+                exercise_name TEXT NOT NULL,
+                category TEXT DEFAULT 'General',
+                equipment TEXT DEFAULT 'Peso corporal / Bolso',
+                description TEXT DEFAULT '',
+                sets INTEGER DEFAULT 4,
+                reps TEXT DEFAULT '10-12',
+                weight REAL DEFAULT 0.0,
+                weight_unit TEXT DEFAULT 'kg',
+                notes TEXT DEFAULT '',
+                completed INTEGER DEFAULT 0,
+                order_index INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE SET NULL
+            )
+        ''')
+
         conn.commit()
 
 
@@ -753,5 +775,228 @@ def delete_calendar_event(event_id):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM plan_calendar_events WHERE id = ?', (event_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ==================== MÉTODOS DEL CALENDARIO PERSONAL Y BITÁCORA ====================
+
+def get_last_session_for_exercise(exercise_name, before_date=None):
+    """
+    Obtiene la última sesión previa donde se realizó este ejercicio (para memoria histórica).
+    Permite saber con qué peso y reps te quedaste incluso si no entrenaste en semanas.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        sql = '''
+            SELECT * FROM daily_workout_items 
+            WHERE LOWER(exercise_name) = LOWER(?) 
+        '''
+        params = [exercise_name.strip()]
+        if before_date:
+            sql += ' AND date < ? '
+            params.append(before_date)
+        sql += ' ORDER BY date DESC, id DESC LIMIT 1 '
+        
+        cursor.execute(sql, params)
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            today_ref = datetime.strptime(before_date, '%Y-%m-%d').date() if before_date else date.today()
+            item_date = datetime.strptime(d['date'], '%Y-%m-%d').date()
+            d['days_ago'] = (today_ref - item_date).days
+        except Exception:
+            d['days_ago'] = None
+        return d
+
+def get_day_exercises(date_str):
+    """Devuelve todos los ejercicios asignados/realizados en una fecha con su última sesión histórica."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM daily_workout_items
+            WHERE date = ?
+            ORDER BY order_index ASC, id ASC
+        ''', (date_str,))
+        rows = cursor.fetchall()
+        items = []
+        for r in rows:
+            d = dict(r)
+            d['last_session'] = get_last_session_for_exercise(d['exercise_name'], before_date=date_str)
+            items.append(d)
+        return items
+
+def add_exercise_to_day(date_str, exercise_id=None, custom_name=None, sets=None, reps=None, weight=None, weight_unit='kg', notes='', description=''):
+    """Agrega un ejercicio libremente a un día específico."""
+    now_str = datetime.now().strftime('%Y-%m-%d %H:%M')
+    name = custom_name
+    category = 'General'
+    equipment = 'Peso corporal / Bolso'
+    desc = description
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if exercise_id:
+            cursor.execute('SELECT * FROM exercises WHERE id = ?', (exercise_id,))
+            ex = cursor.fetchone()
+            if ex:
+                ex_dict = dict(ex)
+                name = ex_dict['name']
+                category = ex_dict['muscle_group']
+                equipment = ex_dict['equipment']
+                desc = desc or ex_dict.get('description', '')
+                if sets is None: sets = ex_dict.get('default_sets', 4)
+                if reps is None: reps = ex_dict.get('default_reps', '10-12')
+                if weight is None: weight = ex_dict.get('default_weight', 0.0)
+
+        if sets is None: sets = 4
+        if reps is None: reps = '10-12'
+        if weight is None: weight = 0.0
+        if not name: name = 'Ejercicio'
+
+        # Auto-detectar última carga histórica si no se especificó peso
+        last_s = get_last_session_for_exercise(name, before_date=date_str)
+        if last_s and (weight is None or weight == 0):
+            weight = last_s.get('weight', 0.0)
+            weight_unit = last_s.get('weight_unit', weight_unit)
+
+        cursor.execute('SELECT MAX(order_index) as max_idx FROM daily_workout_items WHERE date = ?', (date_str,))
+        max_row = cursor.fetchone()
+        next_order = (max_row['max_idx'] or 0) + 1 if max_row and max_row['max_idx'] is not None else 0
+
+        cursor.execute('''
+            INSERT INTO daily_workout_items (
+                date, exercise_id, exercise_name, category, equipment, description,
+                sets, reps, weight, weight_unit, notes, completed, order_index, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+        ''', (date_str, exercise_id, name.strip(), category, equipment, desc, int(sets), str(reps).strip(), float(weight), weight_unit.strip(), notes.strip(), next_order, now_str))
+        
+        conn.commit()
+        new_id = cursor.lastrowid
+        
+        cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (new_id,))
+        item = dict(cursor.fetchone())
+        item['last_session'] = last_s
+        return item
+
+def update_day_exercise(item_id, sets=None, reps=None, weight=None, weight_unit=None, notes=None, completed=None, description=None):
+    """Actualiza series, reps, peso, notas o estado completado de un ejercicio en el día."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (item_id,))
+        item = cursor.fetchone()
+        if not item:
+            return None
+        d = dict(item)
+        
+        new_sets = d['sets'] if sets is None else int(sets)
+        new_reps = d['reps'] if reps is None else str(reps).strip()
+        new_weight = d['weight'] if weight is None else float(weight)
+        new_unit = d['weight_unit'] if weight_unit is None else str(weight_unit).strip()
+        new_notes = d['notes'] if notes is None else str(notes).strip()
+        new_completed = d['completed'] if completed is None else int(completed)
+        new_desc = d['description'] if description is None else str(description).strip()
+        
+        cursor.execute('''
+            UPDATE daily_workout_items
+            SET sets = ?, reps = ?, weight = ?, weight_unit = ?, notes = ?, completed = ?, description = ?
+            WHERE id = ?
+        ''', (new_sets, new_reps, new_weight, new_unit, new_notes, new_completed, new_desc, item_id))
+
+        if description is not None and d.get('exercise_id'):
+            cursor.execute('UPDATE exercises SET description = ? WHERE id = ?', (new_desc, d['exercise_id']))
+
+        conn.commit()
+        cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (item_id,))
+        updated = dict(cursor.fetchone())
+        updated['last_session'] = get_last_session_for_exercise(updated['exercise_name'], before_date=updated['date'])
+        return updated
+
+def delete_day_exercise(item_id):
+    """Elimina un ejercicio del día."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM daily_workout_items WHERE id = ?', (item_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_calendar_month_summary(year, month):
+    """Devuelve el resumen de actividades por cada día del mes para pintar el calendario."""
+    prefix = f"{year:04d}-{month:02d}%"
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT date, 
+                   COUNT(*) as total_exercises,
+                   SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_exercises,
+                   SUM(weight * sets) as total_volume
+            FROM daily_workout_items
+            WHERE date LIKE ?
+            GROUP BY date
+            ORDER BY date ASC
+        ''', (prefix,))
+        rows = cursor.fetchall()
+        result = {}
+        for r in rows:
+            result[r['date']] = {
+                'total': r['total_exercises'],
+                'completed': r['completed_exercises'],
+                'volume': round(r['total_volume'] or 0, 1),
+                'status': 'completed' if r['completed_exercises'] == r['total_exercises'] and r['total_exercises'] > 0 else 'in_progress'
+            }
+        return result
+
+def get_exercise_history(exercise_name, limit=30):
+    """Devuelve la bitácora histórica completa de un ejercicio."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM daily_workout_items
+            WHERE LOWER(exercise_name) = LOWER(?)
+            ORDER BY date DESC, id DESC
+            LIMIT ?
+        ''', (exercise_name.strip(), limit))
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+
+def get_personal_logbook(limit=30):
+    """Devuelve la bitácora cronológica con los entrenamientos realizados fecha por fecha."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT date, 
+                   COUNT(*) as total_exercises,
+                   SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_exercises,
+                   SUM(sets) as total_sets,
+                   SUM(weight * sets) as total_volume
+            FROM daily_workout_items
+            GROUP BY date
+            ORDER BY date DESC
+            LIMIT ?
+        ''', (limit,))
+        date_rows = cursor.fetchall()
+        logbook = []
+        for dr in date_rows:
+            d_dict = dict(dr)
+            cursor.execute('''
+                SELECT * FROM daily_workout_items
+                WHERE date = ?
+                ORDER BY order_index ASC, id ASC
+            ''', (dr['date'],))
+            items = [dict(it) for it in cursor.fetchall()]
+            d_dict['exercises'] = items
+            logbook.append(d_dict)
+        return logbook
+
+def update_exercise_details(exercise_id, name, description, equipment, muscle_group, default_sets=4, default_reps='10-12', default_weight=0.0):
+    """Permite editar cualquier ejercicio de la biblioteca, incluyendo su descripción técnica."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE exercises
+            SET name = ?, description = ?, equipment = ?, muscle_group = ?, default_sets = ?, default_reps = ?, default_weight = ?
+            WHERE id = ?
+        ''', (name.strip(), description.strip(), equipment.strip(), muscle_group.strip(), int(default_sets), str(default_reps).strip(), float(default_weight), exercise_id))
         conn.commit()
         return cursor.rowcount > 0

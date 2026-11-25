@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Training - Gestión y Rutinas de Gimnasio para Instructores</title>
-  <meta name="description" content="Micro app profesional para entrenadores e instructores de gimnasio. Arma rutinas personalizadas arrastrando ejercicios, controla series, repeticiones y peso.">
+  <title>Training - Mi Calendario & Bitácora Personal de Entrenamiento</title>
+  <meta name="description" content="Calendario interactivo y bitácora personal de entrenamiento. Lleva el control de series, repeticiones y peso en cada ejercicio y mantén tu memoria histórica de progresión.">
 
   <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
   <!-- Estilos CSS -->
   <link rel="stylesheet" href="/static/css/style.css">
@@ -20,8 +23,8 @@
   <header class="app-header">
     <div class="header-container">
       
-      <!-- Marca / Logo -->
-      <div class="brand-section" onclick="TrainingApp.switchTab('rutinas')">
+      <!-- Marca / Logo Personal -->
+      <div class="brand-section" onclick="TrainingApp.switchTab('calendario')">
         <div class="brand-icon-box">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
@@ -29,68 +32,40 @@
         </div>
         <div class="brand-info">
           <h1>TRAINING<span class="highlight">.</span></h1>
-          <p>Instructor & Workout Planner</p>
+          <p>Mi Bitácora & Calendario Personal</p>
         </div>
       </div>
 
-      <!-- Pestañas de Navegación -->
+      <!-- Pestañas de Navegación Principal -->
       <nav class="nav-tabs">
-        <button type="button" class="nav-tab-btn active" data-tab="rutinas">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 5v14M18 5v14M2 9h20M2 15h20"></path>
-          </svg>
-          <span>Rutinas (Drag & Drop)</span>
+        <button type="button" class="nav-tab-btn active" data-tab="calendario" onclick="TrainingApp.switchTab('calendario')">
+          <i class="fa-regular fa-calendar-days"></i>
+          <span>Mi Calendario & Hoy</span>
+          <span class="badge-pill" id="badge-today-count">0</span>
         </button>
 
-        <button type="button" class="nav-tab-btn" data-tab="planificador">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line>
-            <line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          <span>Planificación & Calendario (3/6m)</span>
-          <span class="badge-pill" id="count-nav-plans">0</span>
+        <button type="button" class="nav-tab-btn" data-tab="biblioteca" onclick="TrainingApp.switchTab('biblioteca')">
+          <i class="fa-solid fa-book-bookmark"></i>
+          <span>Biblioteca de Ejercicios</span>
+          <span class="badge-pill" id="badge-exercises-count">0</span>
         </button>
 
-
-        <button type="button" class="nav-tab-btn" data-tab="alumnos">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span>Alumnos</span>
-          <span class="badge-pill" id="count-nav-students">0</span>
-        </button>
-
-        <button type="button" class="nav-tab-btn" data-tab="biblioteca">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
-          <span>Biblioteca</span>
-          <span class="badge-pill" id="count-nav-exercises">0</span>
-        </button>
-
-        <button type="button" class="nav-tab-btn" data-tab="control">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-          </svg>
-          <span>Control & Sesiones</span>
-          <span class="badge-pill" id="count-nav-logs">0</span>
+        <button type="button" class="nav-tab-btn" data-tab="bitacora" onclick="TrainingApp.switchTab('bitacora')">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Bitácora & Progreso</span>
+          <span class="badge-pill" id="badge-logbook-count">0</span>
         </button>
       </nav>
 
       <!-- Botones de Acción Rápida -->
       <div class="header-actions">
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-new-student-modal">
-          <span>+ Nuevo Alumno</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="TrainingApp.goToToday()" title="Ir al día de hoy en el calendario">
+          <i class="fa-solid fa-calendar-check" style="color: var(--apple-500);"></i>
+          <span id="label-today-header">Hoy</span>
         </button>
-        <button type="button" class="btn btn-apple btn-sm" id="btn-open-log-modal">
-          <span>⚡ Registrar Sesión</span>
+        <button type="button" class="btn btn-apple btn-sm" onclick="TrainingApp.openAddExerciseModal()" title="Agregar un ejercicio al día seleccionado">
+          <i class="fa-solid fa-plus"></i>
+          <span>Agregar Ejercicio</span>
         </button>
       </div>
 
@@ -100,738 +75,284 @@
   <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
   <main class="main-wrapper">
 
-    <!-- ==================== VISTA 1: CREADOR DE RUTINAS (DRAG & DROP) ==================== -->
-    <section id="view-rutinas" class="view-section active">
-      
-      <!-- Topbar de Control de la Rutina -->
-      <div class="routine-topbar">
+    <!-- ==================== VISTA 1: CALENDARIO PERSONAL Y DÍA SELECCIONADO ==================== -->
+    <section id="view-calendario" class="view-section active">
+      <div class="personal-calendar-layout">
         
-        <div class="routine-topbar-row">
-          
-          <!-- Selector de Alumno -->
-          <div class="student-picker-wrapper">
-            <span class="picker-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <circle cx="12" cy="7" r="4"></circle>
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              </svg>
-              Alumno:
-            </span>
-            <select id="student-select" class="select-custom" title="Selecciona un alumno"></select>
-          </div>
-
-          <!-- Selector de Rutina del Alumno -->
-          <div class="student-picker-wrapper">
-            <span class="picker-label">Rutina:</span>
-            <select id="routine-select" class="select-custom" style="min-width: 220px;" title="Selecciona o cambia de rutina"></select>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-new-routine" title="Crear nueva rutina desde cero">
-              + Nueva Rutina
-            </button>
-          </div>
-
-          <!-- Acciones de Rutina -->
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-export-whatsapp" title="Copiar rutina lista para enviar por WhatsApp">
-              📲 WhatsApp
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-print-routine" title="Imprimir o guardar en PDF">
-              🖨️ Imprimir
-            </button>
-            <button type="button" class="btn btn-apple" id="btn-save-routine">
-              <span>🔥 Guardar Rutina</span>
-            </button>
-            <button type="button" class="btn btn-danger-ghost" id="btn-delete-routine" title="Eliminar rutina">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
-              </svg>
-            </button>
-          </div>
-
-        </div>
-
-        <!-- Título de Rutina editable + Tag de día + Objetivo Alumno -->
-        <div class="routine-topbar-row" style="align-items: center; gap: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
-            <input type="text" id="routine-title-input" class="routine-title-input" value="Día 1: Torso Potencia & Pectoral" placeholder="Nombre de la rutina...">
-            <input type="text" id="routine-day-input" class="day-badge-input" value="Lunes" placeholder="Ej: Lunes, Día A...">
-            <button type="button" class="btn btn-outline-indigo btn-sm" id="btn-log-this-routine" title="Anotar los pesos y reps que hizo el alumno en esta rutina hoy">
-              ✍️ Registrar Sesión de Hoy
-            </button>
-          </div>
-
-          <!-- Chip de objetivo del alumno seleccionado -->
-          <div id="active-student-goal-chip" class="student-goal-chip">
-            Cargando alumno...
-          </div>
-        </div>
-
-        <!-- Cinta de Métricas en Vivo -->
-        <div class="routine-metrics-ribbon">
-          <div class="metric-pill">
-            <div class="metric-icon">📋</div>
-            <div class="metric-data">
-              <span class="metric-label">Ejercicios</span>
-              <span class="metric-val" id="stat-total-exercises">0</span>
+        <!-- PANEL IZQUIERDO: CALENDARIO MENSUAL -->
+        <div class="calendar-card-panel">
+          <div class="calendar-header-nav">
+            <div class="calendar-title-group">
+              <h2 id="calendar-month-title">Noviembre 2026</h2>
+              <span class="calendar-subtitle">Selecciona un día para ver o planificar tu sesión</span>
             </div>
-          </div>
-
-          <div class="metric-pill">
-            <div class="metric-icon">🔢</div>
-            <div class="metric-data">
-              <span class="metric-label">Series Totales</span>
-              <span class="metric-val" id="stat-total-sets">0</span>
-            </div>
-          </div>
-
-          <div class="metric-pill apple">
-            <div class="metric-icon">⚖️</div>
-            <div class="metric-data">
-              <span class="metric-label">Volumen Estimado</span>
-              <span class="metric-val" id="stat-total-volume">0 kg</span>
-            </div>
-          </div>
-
-          <div class="metric-pill">
-            <div class="metric-icon">💪</div>
-            <div class="metric-data">
-              <span class="metric-label">Músculos</span>
-              <span class="metric-val" id="stat-muscles-count">0</span>
-            </div>
-          </div>
-
-          <div style="margin-left: auto; font-size: 0.775rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem;">
-            <span>💡 <em>Arrastra desde la biblioteca para soltar ejercicios en el orden deseado.</em></span>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Layout del Creador: Columna izquierda (Biblioteca) + Columna derecha (Tablero de Soltar) -->
-      <div class="builder-layout">
-        
-        <!-- COLUMNA IZQUIERDA: BIBLIOTECA DE EJERCICIOS -->
-        <aside class="library-card">
-          
-          <div class="library-header">
-            <div class="library-title-row">
-              <h3>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                </svg>
-                Biblioteca
-              </h3>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-new-exercise-modal" title="Crear ejercicio personalizado">
-                + Crear
+            <div class="calendar-nav-buttons">
+              <button type="button" class="btn-icon" onclick="TrainingApp.changeMonth(-1)" title="Mes anterior">
+                <i class="fa-solid fa-chevron-left"></i>
+              </button>
+              <button type="button" class="btn btn-secondary btn-xs" onclick="TrainingApp.goToToday()">
+                Hoy
+              </button>
+              <button type="button" class="btn-icon" onclick="TrainingApp.changeMonth(1)" title="Mes siguiente">
+                <i class="fa-solid fa-chevron-right"></i>
               </button>
             </div>
+          </div>
 
-            <!-- Buscador -->
-            <div class="search-input-box">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              <input type="text" id="library-search-input" placeholder="Buscar ejercicio, máquina...">
+          <!-- Cuadrícula del Calendario -->
+          <div class="calendar-grid-header">
+            <div>Lun</div>
+            <div>Mar</div>
+            <div>Mié</div>
+            <div>Jue</div>
+            <div>Vie</div>
+            <div>Sáb</div>
+            <div>Dom</div>
+          </div>
+          <div class="calendar-days-grid" id="calendar-days-container">
+            <!-- Celdas de días renderizadas dinámicamente con JS -->
+          </div>
+
+          <!-- Resumen del Mes -->
+          <div class="calendar-month-stats">
+            <div class="stat-item">
+              <span class="stat-number" id="stat-month-workouts">0</span>
+              <span class="stat-label">Días entrenados</span>
             </div>
-
-            <!-- Filtros por Grupos Musculares -->
-            <div class="muscle-filter-scroll" id="muscle-filter-scroll"></div>
-          </div>
-
-          <!-- Lista desplazable de tarjetas arrastrables -->
-          <div class="exercise-scroll-list" id="exercise-scroll-list">
-            <!-- Renderizado dinámicamente -->
-          </div>
-
-        </aside>
-
-        <!-- COLUMNA DERECHA: TABLERO DE RUTINA (ZONA DE SOLTAR) -->
-        <div class="routine-board">
-          <div class="drop-zone" id="routine-drop-zone">
-            <!-- Renderizado dinámicamente con las tarjetas de ejercicios -->
-          </div>
-        </div>
-
-      </div>
-
-    </section>
-
-    <!-- ==================== VISTA: PLANIFICACIÓN Y MACROCICLOS (3, 6, 12 MESES) ==================== -->
-    <section id="view-planificador" class="view-section">
-      
-      <!-- Topbar de Control del Plan -->
-      <div class="planner-topbar">
-        <div class="routine-topbar-row">
-          
-          <!-- Selector de Alumno -->
-          <div class="student-picker-wrapper">
-            <span class="picker-label">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <circle cx="12" cy="7" r="4"></circle>
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              </svg>
-              Alumno:
-            </span>
-            <select id="planner-student-select" class="select-custom" title="Selecciona un alumno"></select>
-          </div>
-
-          <!-- Selector de Plan del Alumno -->
-          <div class="student-picker-wrapper">
-            <span class="picker-label">Plan / Periodización:</span>
-            <select id="plan-select" class="select-custom" style="min-width: 250px;" title="Selecciona o cambia de plan"></select>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-open-new-plan-modal">
-              + Nuevo Plan (3/6/12m)
-            </button>
-          </div>
-
-          <!-- Acciones de Plan -->
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto;">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-export-plan-whatsapp" title="Compartir resumen del plan por WhatsApp">
-              📲 WhatsApp
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-print-plan" title="Imprimir plan completo">
-              🖨️ Imprimir
-            </button>
-            <button type="button" class="btn btn-apple btn-sm" id="btn-regenerate-calendar" title="Proyectar y regenerar todos los días del calendario">
-              ⚡ Regenerar Calendario
-            </button>
-            <button type="button" class="btn btn-danger-ghost btn-sm" id="btn-delete-plan" title="Eliminar plan actual">
-              🗑️
-            </button>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Banner de Plan Activo con progreso -->
-      <div class="plan-active-banner" id="plan-banner">
-        <div class="plan-banner-info">
-          <h3 id="plan-banner-title">
-            <span id="plan-banner-name">📅 Plan Macrociclo Hipertrofia & Fuerza - 3 Meses</span>
-            <span class="badge badge-apple" id="plan-banner-duration">3 MESES</span>
-          </h3>
-          <p id="plan-banner-desc">🎯 Objetivo: Aumento de masa magra y sobrecarga progresiva en básicos • Período: 01/10/2026 al 31/12/2026</p>
-        </div>
-
-        <div class="plan-banner-stats">
-          <div class="plan-progress-box">
-            <div style="display: flex; justify-content: space-between; font-size: 0.775rem; font-weight: 700;">
-              <span>Progreso del Plan</span>
-              <span id="plan-progress-percent" style="color: var(--apple-400);">15%</span>
+            <div class="stat-item">
+              <span class="stat-number" id="stat-month-exercises">0</span>
+              <span class="stat-label">Ejercicios totales</span>
             </div>
-            <div class="plan-progress-bar-bg">
-              <div class="plan-progress-bar-fill" id="plan-progress-bar" style="width: 15%;"></div>
+            <div class="stat-item">
+              <span class="stat-number" id="stat-month-volume">0 kg</span>
+              <span class="stat-label">Volumen levantado</span>
             </div>
-            <span style="font-size: 0.7rem; color: #cbd5e1;" id="plan-progress-count">5 de 36 sesiones completadas</span>
           </div>
         </div>
-      </div>
 
-      <!-- Sub-navegación: Calendario Mensual vs Periodización Semanal Tipo -->
-      <div class="planner-subnav">
-        <div class="planner-toggle-group">
-          <button type="button" class="planner-toggle-btn active" data-subtab="calendar-month">
-            📅 Calendario Mensual
-          </button>
-          <button type="button" class="planner-toggle-btn" data-subtab="weekly-periodization">
-            📋 Estructura Semanal Tipo (Plantilla)
-          </button>
-        </div>
-
-        <div style="font-size: 0.85rem; color: var(--text-muted);">
-          💡 <em>Haz clic en cualquier día para ver la rutina o marcarla como completada.</em>
-        </div>
-      </div>
-
-      <!-- SUB-VISTA 1: CALENDARIO MENSUAL -->
-      <div id="subview-calendar-month" class="calendar-card">
-        <div class="calendar-month-header">
-          <div class="calendar-month-title">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-cal-prev-month">◀</button>
-            <span id="calendar-current-month-name">Octubre 2026</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-cal-next-month">▶</button>
+        <!-- PANEL DERECHO: DETALLE DEL DÍA SELECCIONADO -->
+        <div class="day-workout-panel">
+          <div class="day-panel-header">
+            <div>
+              <div class="day-date-tag" id="day-relative-tag">HOY</div>
+              <h2 class="day-date-title" id="day-date-title">Miércoles, 25 de Noviembre de 2026</h2>
+              <p class="day-date-summary" id="day-date-summary">Cargando ejercicios...</p>
+            </div>
+            <div class="day-panel-actions">
+              <button type="button" class="btn btn-apple btn-sm" onclick="TrainingApp.openAddExerciseModal()">
+                <i class="fa-solid fa-plus"></i> Agregar Ejercicio
+              </button>
+            </div>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-cal-today">
-            Ir a Hoy
-          </button>
+
+          <!-- Lista de Ejercicios del Día -->
+          <div class="day-exercises-list" id="day-exercises-list">
+            <!-- Renderizado dinámico de tarjetas de ejercicio -->
+          </div>
+
+          <!-- Estado Vacío cuando no hay ejercicios en el día -->
+          <div class="empty-day-state" id="empty-day-state" style="display: none;">
+            <div class="empty-icon-circle">
+              <i class="fa-solid fa-dumbbell"></i>
+            </div>
+            <h3>Día libre de entrenamiento</h3>
+            <p>No tienes ejercicios agregados a este día. Puedes elegir libremente cualquier ejercicio de tu biblioteca para armar tu sesión.</p>
+            <button type="button" class="btn btn-apple" onclick="TrainingApp.openAddExerciseModal()">
+              <i class="fa-solid fa-plus"></i> Elegir Ejercicios de la Biblioteca
+            </button>
+          </div>
         </div>
 
-        <div class="calendar-grid">
-          <!-- Cabeceras de días de la semana -->
-          <div class="calendar-weekday-header">Lunes</div>
-          <div class="calendar-weekday-header">Martes</div>
-          <div class="calendar-weekday-header">Miércoles</div>
-          <div class="calendar-weekday-header">Jueves</div>
-          <div class="calendar-weekday-header">Viernes</div>
-          <div class="calendar-weekday-header">Sábado</div>
-          <div class="calendar-weekday-header">Domingo</div>
-        </div>
-
-        <!-- Celdas de los días del mes -->
-        <div class="calendar-grid" id="calendar-days-grid" style="margin-top: 0.5rem;">
-          <!-- Generado dinámicamente -->
-        </div>
-      </div>
-
-      <!-- SUB-VISTA 2: ESTRUCTURA SEMANAL TIPO (PERIODIZACIÓN) -->
-      <div id="subview-weekly-periodization" class="calendar-card" style="display: none;">
-        <div style="margin-bottom: 1rem;">
-          <h3 style="font-size: 1.25rem; color: var(--indigo-950);">Estructura Semanal de la Rutina (Periodización)</h3>
-          <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem;">
-            Asigna qué rutina le corresponde al alumno cada día de la semana. Al hacer clic en <strong>"Guardar y Proyectar a todo el Plan"</strong>, se replicará automáticamente a lo largo de los 3, 6 o 12 meses seleccionados.
-          </p>
-        </div>
-
-        <div class="weekly-schedule-grid" id="weekly-schedule-grid">
-          <!-- Generado dinámicamente con las tarjetas de Lunes a Domingo -->
-        </div>
-
-        <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-apple" id="btn-save-weekly-schedule">
-            <span>💾 Guardar y Proyectar a Todo el Plan</span>
-          </button>
-        </div>
-      </div>
-
-    </section>
-
-    <!-- ==================== VISTA 2: LISTA DE ALUMNOS ==================== -->
-    <section id="view-alumnos" class="view-section">
-      <div class="view-header">
-        <div class="view-header-title">
-          <h2>Lista de Alumnos</h2>
-          <p>Gestiona a tus alumnos, sus objetivos deportivos, pesos y acceso directo a sus rutinas.</p>
-        </div>
-        <button type="button" class="btn btn-primary" onclick="TrainingApp.openStudentModal()">
-          <span>+ Registrar Nuevo Alumno</span>
-        </button>
-      </div>
-
-      <div class="students-grid" id="students-grid">
-        <!-- Renderizado dinámicamente -->
       </div>
     </section>
 
-    <!-- ==================== VISTA 3: BIBLIOTECA COMPLETA ==================== -->
+    <!-- ==================== VISTA 2: BIBLIOTECA DE EJERCICIOS ==================== -->
     <section id="view-biblioteca" class="view-section">
-      <div class="view-header">
-        <div class="view-header-title">
-          <h2>Biblioteca de Ejercicios</h2>
-          <p>Explora todos los ejercicios catalogados por grupo muscular, equipamiento y dificultad.</p>
+      <div class="library-view-container">
+        
+        <!-- Barra de Búsqueda y Filtros de la Biblioteca -->
+        <div class="library-topbar">
+          <div class="library-header-text">
+            <h2>Biblioteca de Ejercicios</h2>
+            <p>Consulta la técnica, agrega descripciones personales o crea nuevos ejercicios para tu repertorio.</p>
+          </div>
+          <div class="library-top-actions">
+            <button type="button" class="btn btn-apple" onclick="TrainingApp.openNewExerciseModal()">
+              <i class="fa-solid fa-plus"></i> Nuevo Ejercicio
+            </button>
+          </div>
         </div>
-        <button type="button" class="btn btn-primary" onclick="TrainingApp.openExerciseModal()">
-          <span>+ Añadir Ejercicio</span>
-        </button>
-      </div>
 
-      <div class="library-full-view">
         <div class="library-controls-bar">
-          <span style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Filtrar por Grupo Muscular:</span>
-          <div class="muscle-filter-scroll" id="catalog-muscle-filter"></div>
+          <div class="search-input-box">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="library-search-input" placeholder="Buscar por nombre, máquina, bolso o calistenia..." oninput="TrainingApp.filterLibrary()">
+          </div>
+
+          <div class="muscle-filter-scroll" id="library-muscle-chips">
+            <!-- Filtros renderizados dinámicamente -->
+          </div>
         </div>
 
-        <div class="exercises-grid" id="catalog-grid">
-          <!-- Renderizado dinámicamente -->
+        <!-- Rejilla de Tarjetas de Ejercicios -->
+        <div class="library-cards-grid" id="library-cards-container">
+          <!-- Renderizado dinámico -->
         </div>
+
       </div>
     </section>
 
-    <!-- ==================== VISTA 4: CONTROL Y SESIONES (LOGS) ==================== -->
-    <section id="view-control" class="view-section">
-      <div class="view-header">
-        <div class="view-header-title">
-          <h2>Control de Alumnos y Entrenamientos</h2>
-          <p>Supervisa el historial de sesiones completadas, pesos levantados y esfuerzo percibido (RPE).</p>
+    <!-- ==================== VISTA 3: BITÁCORA Y PROGRESO HISTÓRICO ==================== -->
+    <section id="view-bitacora" class="view-section">
+      <div class="logbook-view-container">
+        
+        <div class="logbook-header">
+          <div>
+            <h2>Bitácora & Memoria de Progreso</h2>
+            <p>Consulta lo que hiciste en cada fecha o analiza cómo has aumentado peso y repeticiones a lo largo del tiempo.</p>
+          </div>
         </div>
-        <button type="button" class="btn btn-apple" onclick="TrainingApp.openLogSessionModal()">
-          <span>⚡ Registrar Sesión Realizada</span>
-        </button>
-      </div>
 
-      <div class="logs-timeline" id="logs-timeline">
-        <!-- Renderizado dinámicamente -->
+        <!-- Selector de Ejercicio para Curva de Progresión -->
+        <div class="logbook-exercise-selector-card">
+          <div class="selector-row">
+            <div class="selector-info">
+              <label><i class="fa-solid fa-magnifying-glass-chart" style="color: var(--apple-500); margin-right: 6px;"></i> Ver progresión histórica de un ejercicio:</label>
+              <select id="select-history-exercise" class="select-custom" onchange="TrainingApp.loadExerciseHistory(this.value)">
+                <option value="">Selecciona un ejercicio...</option>
+              </select>
+            </div>
+            <div id="history-summary-box" class="history-summary-box" style="display: none;">
+              <span id="history-total-sessions" class="history-badge">0 sesiones registradas</span>
+              <span id="history-max-weight" class="history-badge weight">Peso máx: 0 kg</span>
+            </div>
+          </div>
+
+          <!-- Lista Histórica del Ejercicio Seleccionado -->
+          <div id="exercise-history-timeline" class="exercise-history-timeline" style="display: none;">
+            <!-- Timeline renderizado dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Línea de Tiempo General de Entrenamientos -->
+        <div class="logbook-timeline-section">
+          <h3><i class="fa-solid fa-clock-rotate-left" style="color: var(--indigo-600); margin-right: 8px;"></i> Historial de Entrenamientos Realizados</h3>
+          <div class="logbook-entries-list" id="logbook-entries-container">
+            <!-- Entradas de la bitácora -->
+          </div>
+        </div>
+
       </div>
     </section>
 
   </main>
 
-  <!-- ==================== MODAL: NUEVO / EDITAR ALUMNO ==================== -->
-  <div class="modal-overlay" id="student-modal">
-    <div class="modal-box">
+  <!-- ==================== MODALES ==================== -->
+
+  <!-- MODAL 1: AGREGAR EJERCICIO AL DÍA -->
+  <div class="modal-backdrop" id="modal-add-to-day">
+    <div class="modal-dialog modal-lg">
       <div class="modal-header">
-        <h3 id="student-modal-title">Nuevo Alumno</h3>
-        <button type="button" class="modal-close-btn">&times;</button>
+        <div>
+          <h3><i class="fa-solid fa-dumbbell" style="color: var(--apple-500); margin-right: 8px;"></i> Agregar Ejercicio al Día</h3>
+          <p class="modal-subtitle" id="modal-add-subtitle">Selecciona cualquier ejercicio de tu biblioteca</p>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="TrainingApp.closeModal('modal-add-to-day')">&times;</button>
       </div>
-      <form id="student-form">
-        <div class="modal-body">
-          <input type="hidden" id="student-modal-id">
 
+      <div class="modal-search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="modal-picker-search" placeholder="Escribe para buscar ejercicio..." oninput="TrainingApp.filterPickerExercises()">
+      </div>
+
+      <div class="modal-exercise-picker-list" id="modal-picker-list">
+        <!-- Lista seleccionable con 1 clic -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CREAR / EDITAR EJERCICIO EN LA BIBLIOTECA -->
+  <div class="modal-backdrop" id="modal-exercise-edit">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-exercise-title"><i class="fa-solid fa-pen-to-square" style="color: var(--apple-500); margin-right: 8px;"></i> Editar Ejercicio</h3>
+          <p class="modal-subtitle">Modifica la técnica, descripción o datos sugeridos</p>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="TrainingApp.closeModal('modal-exercise-edit')">&times;</button>
+      </div>
+
+      <form onsubmit="TrainingApp.saveExerciseForm(event)">
+        <input type="hidden" id="form-ex-id">
+
+        <div class="form-group">
+          <label>Nombre del Ejercicio *</label>
+          <input type="text" id="form-ex-name" class="form-input" placeholder="Ej. Dominadas con Bolso, Press Militar..." required>
+        </div>
+
+        <div class="form-row-2">
           <div class="form-group">
-            <label for="student-name-input">Nombre y Apellidos *</label>
-            <input type="text" id="student-name-input" class="form-control" required placeholder="Ej: Carlos Mendoza">
+            <label>Grupo / Categoría</label>
+            <input type="text" id="form-ex-muscle" class="form-input" placeholder="Ej. Espalda, Pecho, Piernas, Calistenia..." required>
           </div>
-
           <div class="form-group">
-            <label for="student-goal-input">Objetivo Principal *</label>
-            <input type="text" id="student-goal-input" class="form-control" required placeholder="Ej: Hipertrofia, Pérdida de Grasa, Fuerza...">
+            <label>Equipamiento / Carga</label>
+            <input type="text" id="form-ex-equip" class="form-input" placeholder="Ej. Bolso con peso, Barra, Mancuernas..." required>
           </div>
+        </div>
 
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="student-phone-input">Teléfono / WhatsApp</label>
-              <input type="text" id="student-phone-input" class="form-control" placeholder="+34 600 000 000">
-            </div>
-            <div class="form-group">
-              <label for="student-email-input">Correo Electrónico</label>
-              <input type="email" id="student-email-input" class="form-control" placeholder="alumno@correo.com">
-            </div>
-          </div>
+        <div class="form-group">
+          <label>Descripción / Instrucciones Técnicas</label>
+          <textarea id="form-ex-desc" class="form-textarea" rows="3" placeholder="Describe la técnica, postura o notas para cuando lo hagas (opcional)..."></textarea>
+        </div>
 
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="student-weight-input">Peso Corporal (kg)</label>
-              <input type="number" step="0.1" id="student-weight-input" class="form-control" value="70.0">
-            </div>
-            <div class="form-group">
-              <label for="student-height-input">Estatura (cm)</label>
-              <input type="number" id="student-height-input" class="form-control" value="175">
-            </div>
-          </div>
-
+        <div class="form-row-3">
           <div class="form-group">
-            <label for="student-level-input">Nivel de Experiencia</label>
-            <select id="student-level-input" class="form-control">
-              <option value="Principiante">Principiante (0 a 6 meses)</option>
-              <option value="Intermedio" selected>Intermedio (6 meses a 2 años)</option>
-              <option value="Avanzado">Avanzado (+2 años entrenando)</option>
-            </select>
+            <label>Series Sugeridas</label>
+            <input type="number" id="form-ex-sets" class="form-input" value="4" min="1" max="20">
           </div>
-
           <div class="form-group">
-            <label for="student-notes-input">Observaciones / Lesiones / Notas</label>
-            <textarea id="student-notes-input" class="form-control" rows="2" placeholder="Ej: Molestia en hombro izquierdo, prefiere entrenar de mañana..."></textarea>
+            <label>Reps Sugeridas</label>
+            <input type="text" id="form-ex-reps" class="form-input" value="10-12">
+          </div>
+          <div class="form-group">
+            <label>Peso Sugerido (kg)</label>
+            <input type="number" step="0.5" id="form-ex-weight" class="form-input" value="0">
           </div>
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary modal-cancel-btn">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar Alumno</button>
+          <button type="button" class="btn btn-secondary" onclick="TrainingApp.closeModal('modal-exercise-edit')">Cancelar</button>
+          <button type="submit" class="btn btn-apple"><i class="fa-solid fa-floppy-disk"></i> Guardar Ejercicio</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ==================== MODAL: NUEVO EJERCICIO ==================== -->
-  <div class="modal-overlay" id="exercise-modal">
-    <div class="modal-box">
+  <!-- MODAL 3: HISTORIAL RÁPIDO DE UN EJERCICIO -->
+  <div class="modal-backdrop" id="modal-exercise-history">
+    <div class="modal-dialog">
       <div class="modal-header">
-        <h3>Nuevo Ejercicio para la Biblioteca</h3>
-        <button type="button" class="modal-close-btn">&times;</button>
+        <div>
+          <h3 id="modal-history-name">Historial del Ejercicio</h3>
+          <p class="modal-subtitle">Bitácora de cargas y progreso</p>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="TrainingApp.closeModal('modal-exercise-history')">&times;</button>
       </div>
-      <form id="exercise-form">
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="ex-name-input">Nombre del Ejercicio *</label>
-            <input type="text" id="ex-name-input" class="form-control" required placeholder="Ej: Hiperextensión en Polea Baja">
-          </div>
 
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="ex-muscle-input">Grupo Muscular Principal *</label>
-              <select id="ex-muscle-input" class="form-control" required>
-                <option value="Pecho">Pecho</option>
-                <option value="Espalda">Espalda</option>
-                <option value="Piernas">Piernas</option>
-                <option value="Hombros">Hombros</option>
-                <option value="Bíceps">Bíceps</option>
-                <option value="Tríceps">Tríceps</option>
-                <option value="Core / Abdomen">Core / Abdomen</option>
-                <option value="Cardio / Funcional">Cardio / Funcional</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ex-sec-muscle-input">Músculo Secundario</label>
-              <input type="text" id="ex-sec-muscle-input" class="form-control" placeholder="Ej: Tríceps, Deltoides...">
-            </div>
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="ex-equip-input">Equipamiento *</label>
-              <select id="ex-equip-input" class="form-control">
-                <option value="Mancuernas">Mancuernas</option>
-                <option value="Barra">Barra</option>
-                <option value="Polea">Polea</option>
-                <option value="Máquina">Máquina</option>
-                <option value="Peso Corporal">Peso Corporal</option>
-                <option value="Kettlebell">Kettlebell</option>
-                <option value="Elásticos">Elásticos</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="ex-diff-input">Dificultad</label>
-              <select id="ex-diff-input" class="form-control">
-                <option value="Principiante">Principiante</option>
-                <option value="Intermedio" selected>Intermedio</option>
-                <option value="Avanzado">Avanzado</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="ex-sets-input">Series por defecto</label>
-              <input type="number" id="ex-sets-input" class="form-control" value="4">
-            </div>
-            <div class="form-group">
-              <label for="ex-reps-input">Reps por defecto</label>
-              <input type="text" id="ex-reps-input" class="form-control" value="10-12">
-            </div>
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="ex-weight-input">Peso sugerido inicial (kg)</label>
-              <input type="number" step="0.5" id="ex-weight-input" class="form-control" value="20.0">
-            </div>
-            <div class="form-group">
-              <label for="ex-rest-input">Descanso sugerido</label>
-              <input type="text" id="ex-rest-input" class="form-control" value="90 seg">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="ex-desc-input">Instrucciones o Enfoque Técnico</label>
-            <textarea id="ex-desc-input" class="form-control" rows="2" placeholder="Ej: Mantener escápulas retraídas y pausa isométrica de 1 segundo en la contracción..."></textarea>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary modal-cancel-btn">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Añadir a Biblioteca</button>
-        </div>
-      </form>
+      <div class="modal-history-body" id="modal-history-content">
+        <!-- Contenido renderizado -->
+      </div>
     </div>
   </div>
 
-  <!-- ==================== MODAL: REGISTRAR SESIÓN REALIZADA (CONTROL) ==================== -->
-  <div class="modal-overlay" id="log-session-modal">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3>⚡ Registrar Sesión Realizada de Alumno</h3>
-        <button type="button" class="modal-close-btn">&times;</button>
-      </div>
-      <form id="log-session-form">
-        <div class="modal-body">
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="log-student-select">Alumno *</label>
-              <select id="log-student-select" class="form-control" required></select>
-            </div>
-            <div class="form-group">
-              <label for="log-date-input">Fecha *</label>
-              <input type="date" id="log-date-input" class="form-control" required>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="log-routine-name-input">Nombre del Entrenamiento *</label>
-            <input type="text" id="log-routine-name-input" class="form-control" required placeholder="Ej: Torso Potencia o Día 1">
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="log-duration-input">Duración (minutos)</label>
-              <input type="number" id="log-duration-input" class="form-control" value="55">
-            </div>
-            <div class="form-group">
-              <label for="log-rpe-input">Nivel de Esfuerzo (RPE 1-10)</label>
-              <select id="log-rpe-input" class="form-control">
-                <option value="6">6/10 - Cómodo, con margen</option>
-                <option value="7">7/10 - Moderado, 3 reps en reserva</option>
-                <option value="8" selected>8/10 - Intenso, 2 reps en reserva</option>
-                <option value="9">9/10 - Muy duro, 1 rep en reserva</option>
-                <option value="10">10/10 - Esfuerzo máximo / Fallo</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Pesos y Reps Reales Logrados en los Ejercicios</label>
-            <div id="log-items-container" style="background: var(--bg-surface-alt); padding: 0.75rem; border-radius: var(--radius-sm); max-height: 180px; overflow-y: auto;">
-              <!-- Se precargan los ejercicios de la rutina activa -->
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="log-notes-input">Comentarios del Instructor sobre la Sesión</label>
-            <textarea id="log-notes-input" class="form-control" rows="2" placeholder="Ej: Muy buena técnica en peso muerto. Subió 5kg respecto a la semana anterior..."></textarea>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary modal-cancel-btn">Cancelar</button>
-          <button type="submit" class="btn btn-apple">Guardar en Control</button>
-        </div>
-      </form>
-    </div>
-  <!-- ==================== MODAL: NUEVO / EDITAR PLAN (3, 6, 12 MESES) ==================== -->
-  <div class="modal-overlay" id="plan-modal">
-    <div class="modal-box" style="max-width: 680px;">
-      <div class="modal-header">
-        <h3 id="plan-modal-title">Nuevo Plan de Entrenamiento</h3>
-        <button type="button" class="modal-close-btn">&times;</button>
-      </div>
-      <form id="plan-form">
-        <div class="modal-body">
-          <input type="hidden" id="plan-modal-id">
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="plan-modal-student">Alumno *</label>
-              <select id="plan-modal-student" class="form-control" required></select>
-            </div>
-            <div class="form-group">
-              <label for="plan-modal-duration">Duración del Plan *</label>
-              <select id="plan-modal-duration" class="form-control" required>
-                <option value="1">1 Mes (Microciclo de choque)</option>
-                <option value="3" selected>3 Meses (Mesociclo - Recomendado)</option>
-                <option value="6">6 Meses (Macrociclo Semestral)</option>
-                <option value="12">12 Meses (Plan Anual Completo)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="plan-modal-name">Nombre del Plan *</label>
-            <input type="text" id="plan-modal-name" class="form-control" required placeholder="Ej: Plan Hipertrofia y Volumen 3 Meses">
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="plan-modal-start-date">Fecha de Inicio *</label>
-              <input type="date" id="plan-modal-start-date" class="form-control" required>
-            </div>
-            <div class="form-group">
-              <label for="plan-modal-goal">Objetivo Deportivo *</label>
-              <input type="text" id="plan-modal-goal" class="form-control" required placeholder="Ej: Ganancia de masa, Definición...">
-            </div>
-          </div>
-
-          <!-- Distribución Semanal Base para proyectar el calendario -->
-          <div class="form-group">
-            <label style="color: var(--indigo-800);">Distribución Semanal Tipo (Se proyectará en todo el calendario)</label>
-            <div style="background: var(--bg-surface-alt); padding: 0.85rem; border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 0.5rem; max-height: 220px; overflow-y: auto;">
-              
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Lunes:</span>
-                <select id="plan-day-0" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Martes:</span>
-                <select id="plan-day-1" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Miércoles:</span>
-                <select id="plan-day-2" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Jueves:</span>
-                <select id="plan-day-3" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Viernes:</span>
-                <select id="plan-day-4" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Sábado:</span>
-                <select id="plan-day-5" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-              <div style="display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 0.5rem;">
-                <span style="font-weight: 700; font-size: 0.8rem;">Domingo:</span>
-                <select id="plan-day-6" class="form-control form-control-sm plan-modal-day-select"></select>
-              </div>
-
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="plan-modal-notes">Notas / Enfoque de Periodización</label>
-            <textarea id="plan-modal-notes" class="form-control" rows="2" placeholder="Ej: Fase 1 primeras 6 semanas acumulación, fase 2 intensificación de cargas..."></textarea>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary modal-cancel-btn">Cancelar</button>
-          <button type="submit" class="btn btn-apple">Crear Plan y Generar Calendario</button>
-        </div>
-      </form>
-    </div>
+  <!-- TOAST NOTIFICATIONS -->
+  <div id="toast" class="toast-box">
+    <div id="toast-icon"><i class="fa-solid fa-circle-check"></i></div>
+    <div id="toast-msg">Operación completada con éxito</div>
   </div>
 
-  <!-- ==================== MODAL: DETALLE DE DÍA EN CALENDARIO ==================== -->
-  <div class="modal-overlay" id="calendar-event-modal">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 id="cal-modal-title">Detalle del Día</h3>
-        <button type="button" class="modal-close-btn">&times;</button>
-      </div>
-      <form id="calendar-event-form">
-        <div class="modal-body">
-          <input type="hidden" id="cal-modal-event-id">
-          <input type="hidden" id="cal-modal-date">
-
-          <div style="background: var(--bg-surface-alt); padding: 0.75rem 1rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 700;">FECHA SELECCIONADA:</span>
-            <span id="cal-modal-date-display" style="font-size: 1rem; font-weight: 800; color: var(--indigo-950);">2026-10-26</span>
-          </div>
-
-          <div class="form-group">
-            <label for="cal-modal-routine">Rutina o Actividad para este día *</label>
-            <select id="cal-modal-routine" class="form-control" required></select>
-          </div>
-
-          <div class="form-group">
-            <label for="cal-modal-status">Estado del Día</label>
-            <select id="cal-modal-status" class="form-control">
-              <option value="scheduled">Programado ⏳</option>
-              <option value="completed">Completado con éxito ✅</option>
-              <option value="rest">Día de Descanso / Recuperación 💤</option>
-              <option value="skipped">No realizado / Faltó ❌</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="cal-modal-notes">Notas específicas para este día</label>
-            <textarea id="cal-modal-notes" class="form-control" rows="2" placeholder="Ej: El alumno sintió fatiga, se redujo una serie..."></textarea>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-danger-ghost" id="btn-delete-cal-event" style="margin-right: auto;">
-            Eliminar del calendario
-          </button>
-          <button type="button" class="btn btn-secondary modal-cancel-btn">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Contenedor para notificaciones Toast -->
-
-  <div id="toast-container"></div>
-
-  <!-- Scripts -->
-  <script src="/static/js/dragdrop.js"></script>
+  <!-- Scripts JS -->
   <script src="/static/js/app.js"></script>
-
 </body>
 </html>

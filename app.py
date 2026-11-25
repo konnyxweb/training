@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, jsonify
+from datetime import datetime, date
 import database
 import os
 
@@ -15,10 +16,19 @@ def index():
 @app.route('/api/initial-state', methods=['GET'])
 def get_initial_state():
     try:
+        from datetime import date
+        today_str = date.today().isoformat()
+        now = datetime.now()
+
         students = database.get_students()
         exercises = database.get_exercises()
         muscle_groups = database.get_muscle_groups()
         recent_logs = database.get_recent_logs(10)
+        
+        # Datos del sistema personal
+        today_exercises = database.get_day_exercises(today_str)
+        month_summary = database.get_calendar_month_summary(now.year, now.month)
+        personal_logbook = database.get_personal_logbook(limit=20)
         
         # Si hay alumnos, cargar las rutinas y planes del primero por defecto
         first_student_routines = []
@@ -33,6 +43,10 @@ def get_initial_state():
         
         return jsonify({
             'success': True,
+            'today': today_str,
+            'today_exercises': today_exercises,
+            'month_summary': month_summary,
+            'personal_logbook': personal_logbook,
             'students': students,
             'exercises': exercises,
             'muscle_groups': muscle_groups,
@@ -391,6 +405,113 @@ def delete_calendar_event(event_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# ==================== CALENDARIO PERSONAL Y BITÁCORA ====================
+
+@app.route('/api/personal/calendar/month', methods=['GET'])
+def get_personal_calendar_month():
+    try:
+        now = datetime.now()
+        year = int(request.args.get('year', now.year))
+        month = int(request.args.get('month', now.month))
+        summary = database.get_calendar_month_summary(year, month)
+        return jsonify({'success': True, 'year': year, 'month': month, 'summary': summary})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/day/<date_str>', methods=['GET'])
+def get_personal_day(date_str):
+    try:
+        items = database.get_day_exercises(date_str)
+        return jsonify({'success': True, 'date': date_str, 'exercises': items})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/day/<date_str>/exercises', methods=['POST'])
+def add_personal_day_exercise(date_str):
+    data = request.get_json() or {}
+    try:
+        item = database.add_exercise_to_day(
+            date_str=date_str,
+            exercise_id=data.get('exercise_id'),
+            custom_name=data.get('name'),
+            sets=data.get('sets'),
+            reps=data.get('reps'),
+            weight=data.get('weight'),
+            weight_unit=data.get('weight_unit', 'kg'),
+            notes=data.get('notes', ''),
+            description=data.get('description', '')
+        )
+        return jsonify({'success': True, 'item': item})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/day/exercises/<int:item_id>', methods=['PUT'])
+def update_personal_day_exercise(item_id):
+    data = request.get_json() or {}
+    try:
+        updated = database.update_day_exercise(
+            item_id=item_id,
+            sets=data.get('sets'),
+            reps=data.get('reps'),
+            weight=data.get('weight'),
+            weight_unit=data.get('weight_unit'),
+            notes=data.get('notes'),
+            completed=data.get('completed'),
+            description=data.get('description')
+        )
+        if not updated:
+            return jsonify({'success': False, 'error': 'Ejercicio no encontrado'}), 404
+        return jsonify({'success': True, 'item': updated})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/day/exercises/<int:item_id>', methods=['DELETE'])
+def delete_personal_day_exercise(item_id):
+    try:
+        success = database.delete_day_exercise(item_id)
+        return jsonify({'success': success})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/exercises/<path:exercise_name>/history', methods=['GET'])
+def get_personal_exercise_history(exercise_name):
+    try:
+        history = database.get_exercise_history(exercise_name, limit=30)
+        return jsonify({'success': True, 'exercise_name': exercise_name, 'history': history})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/logbook', methods=['GET'])
+def get_personal_logbook_api():
+    try:
+        limit = int(request.args.get('limit', 30))
+        logbook = database.get_personal_logbook(limit=limit)
+        return jsonify({'success': True, 'logbook': logbook})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/exercises/<int:exercise_id>', methods=['PUT'])
+def update_exercise_details_api(exercise_id):
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': 'El nombre del ejercicio es obligatorio'}), 400
+    try:
+        success = database.update_exercise_details(
+            exercise_id=exercise_id,
+            name=name,
+            description=data.get('description', ''),
+            equipment=data.get('equipment', 'Mancuerna'),
+            muscle_group=data.get('muscle_group', 'General'),
+            default_sets=data.get('default_sets', 4),
+            default_reps=data.get('default_reps', '10-12'),
+            default_weight=data.get('default_weight', 0.0)
+        )
+        return jsonify({'success': success, 'exercises': database.get_exercises()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 import sys
 if hasattr(sys.stdout, 'reconfigure'):
@@ -399,7 +520,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print("===========================================================")
-    print("[TRAINING] - App para Instructores de Gimnasio")
+    print("[TRAINING] - Mi Bitacora y Calendario Personal de Entrenamiento")
     print(f"Servidor iniciado en: http://localhost:{port}")
     print("===========================================================")
     app.run(host='0.0.0.0', port=port, debug=True)
