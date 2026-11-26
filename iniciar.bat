@@ -6,10 +6,14 @@ echo =======================================================
 echo Iniciando servidor en http://localhost:5000 ...
 echo Presiona Ctrl + C en esta ventana para detener.
 echo.
-where py >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    py -3 app.py
+if exist "env\Scripts\python.exe" (
+    "env\Scripts\python.exe" app.py
 ) else (
-    python app.py
+    where py >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        py -3 app.py
+    ) else (
+        python app.py
+    )
 )
 pause

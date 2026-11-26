@@ -154,7 +154,8 @@ def create_exercise():
             default_sets=int(data.get('default_sets', 4)),
             default_reps=str(data.get('default_reps', '10-12')),
             default_weight=float(data.get('default_weight', 20.0)),
-            default_rest=str(data.get('default_rest', '90 seg'))
+            default_rest=str(data.get('default_rest', '90 seg')),
+            template_sets=data.get('template_sets')
         )
         return jsonify({
             'success': True, 
@@ -505,9 +506,42 @@ def update_exercise_details_api(exercise_id):
             muscle_group=data.get('muscle_group', 'General'),
             default_sets=data.get('default_sets', 4),
             default_reps=data.get('default_reps', '10-12'),
-            default_weight=data.get('default_weight', 0.0)
+            default_weight=data.get('default_weight', 0.0),
+            template_sets=data.get('template_sets')
         )
         return jsonify({'success': success, 'exercises': database.get_exercises()})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/day/exercises/<int:item_id>/sets', methods=['PUT'])
+def save_personal_day_exercise_sets_api(item_id):
+    data = request.get_json() or {}
+    sets_list = data.get('sets_detail', [])
+    try:
+        updated = database.save_day_exercise_sets(item_id, sets_list)
+        if not updated:
+            return jsonify({'success': False, 'error': 'Ejercicio no encontrado'}), 404
+        return jsonify({'success': True, 'item': updated})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/estadisticas')
+def estadisticas_page():
+    return render_template('estadisticas.html')
+
+@app.route('/api/personal/stats/overview', methods=['GET'])
+def get_personal_stats_overview_api():
+    try:
+        overview = database.get_stats_overview()
+        return jsonify({'success': True, 'overview': overview})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/personal/stats/exercise/<path:exercise_name>', methods=['GET'])
+def get_personal_stats_exercise_api(exercise_name):
+    try:
+        stats = database.get_exercise_progression_stats(exercise_name)
+        return jsonify({'success': True, 'stats': stats})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

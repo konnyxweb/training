@@ -350,18 +350,32 @@ const TrainingApp = {
 
   renderExerciseCardHtml(item, index) {
     const isCompleted = (item.completed === 1 || item.completed === true);
+    const setsDetail = Array.isArray(item.sets_detail) && item.sets_detail.length > 0
+      ? item.sets_detail
+      : Array.from({ length: Math.max(1, item.sets || 4) }, (_, idx) => ({
+          set_number: idx + 1,
+          reps: parseInt(item.reps, 10) || 10,
+          weight: parseFloat(item.weight) || 0,
+          weight_unit: item.weight_unit || 'kg',
+          load: Math.round(((parseInt(item.reps, 10) || 10) * (parseFloat(item.weight) || 0)) * 100) / 100,
+          completed: isCompleted ? 1 : 0
+        }));
 
-    // Alerta de memoria histórica
+    // Alerta de memoria histórica con detalle serie a serie
     let historyAlertHtml = '';
     if (item.last_session) {
       const ls = item.last_session;
       const daysText = ls.days_ago !== null ? `hace ${ls.days_ago} días` : ls.date;
       const notesSnippet = ls.notes ? ` · "${this.escapeHtml(ls.notes)}"` : '';
+      let setsBreakdown = `${ls.sets} series x ${ls.reps} reps (${ls.weight} ${ls.weight_unit})`;
+      if (Array.isArray(ls.sets_detail) && ls.sets_detail.length > 0) {
+        setsBreakdown = ls.sets_detail.map(s => `S${s.set_number}: <strong>${s.reps}×${s.weight}${s.weight_unit || 'kg'}</strong>`).join(' · ');
+      }
       historyAlertHtml = `
         <div class="day-ex-history-alert">
           <i class="fa-solid fa-clock-rotate-left"></i>
           <div>
-            <strong>Último registro previo (${daysText}):</strong> ${ls.sets} series x ${ls.reps} reps con <strong>${ls.weight} ${ls.weight_unit}</strong>${notesSnippet}
+            <strong>Última sesión (${daysText}):</strong> ${setsBreakdown}${notesSnippet}
           </div>
         </div>
       `;
@@ -386,6 +400,41 @@ const TrainingApp = {
         </div>
       `;
     }
+
+    const totalVol = item.total_volume !== undefined
+      ? item.total_volume
+      : setsDetail.reduce((acc, s) => acc + ((parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0)), 0);
+    const maxW = item.max_weight !== undefined
+      ? item.max_weight
+      : Math.max(...setsDetail.map(s => parseFloat(s.weight) || 0), 0);
+    const unit = item.weight_unit || (setsDetail[0] && setsDetail[0].weight_unit) || 'kg';
+
+    const setsRowsHtml = setsDetail.map((s, idx) => {
+      const sDone = (s.completed === 1 || s.completed === true);
+      const sLoad = Math.round(((parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0)) * 100) / 100;
+      return `
+        <div class="set-row-item ${sDone ? 'is-set-done' : ''}" data-item-id="${item.id}" data-set-idx="${idx}">
+          <div class="set-num-badge">S${idx + 1}</div>
+          <div>
+            <input type="number" min="0" class="set-input-cell set-reps-input" value="${s.reps}"
+                   oninput="TrainingApp.onSetInputChange(${item.id}, ${idx}, 'reps', this.value)"
+                   onchange="TrainingApp.saveItemSets(${item.id})">
+          </div>
+          <div>
+            <input type="number" step="0.5" min="0" class="set-input-cell set-weight-input" value="${s.weight}"
+                   oninput="TrainingApp.onSetInputChange(${item.id}, ${idx}, 'weight', this.value)"
+                   onchange="TrainingApp.saveItemSets(${item.id})">
+          </div>
+          <div class="set-load-pill" id="set-load-${item.id}-${idx}">${sLoad} ${this.escapeHtml(unit)}</div>
+          <div style="display: flex; justify-content: center;">
+            <button type="button" class="set-check-btn ${sDone ? 'checked' : ''}"
+                    onclick="TrainingApp.toggleSetDone(${item.id}, ${idx})" title="Marcar serie completada">
+              <i class="fa-solid fa-check"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
 
     return `
       <article class="day-exercise-card ${isCompleted ? 'completed' : ''}" id="card-item-${item.id}">
@@ -416,61 +465,117 @@ const TrainingApp = {
         <!-- Memoria Histórica -->
         ${historyAlertHtml}
 
-        <!-- Inputs de Carga en Vivo -->
-        <div class="day-ex-inputs-grid">
-          
-          <!-- Series -->
-          <div class="input-field-group">
-            <label>Series</label>
-            <input type="number" min="1" max="20" class="input-control" value="${item.sets || 4}"
-                   onchange="TrainingApp.updateDayExerciseField(${item.id}, 'sets', this.value)">
-          </div>
-
-          <!-- Repeticiones -->
-          <div class="input-field-group">
-            <label>Repeticiones</label>
-            <input type="text" class="input-control" value="${this.escapeHtml(item.reps || '10-12')}"
-                   placeholder="ej. 10-12"
-                   onchange="TrainingApp.updateDayExerciseField(${item.id}, 'reps', this.value)">
-          </div>
-
-          <!-- Peso y Unidad (Soporte Bolso / Mancuerna / Lastre) -->
-          <div class="input-field-group">
-            <label>Peso / Carga</label>
-            <div class="weight-input-container">
-              <input type="number" step="0.5" min="0" class="input-control" value="${item.weight || 0}"
-                     onchange="TrainingApp.updateDayExerciseField(${item.id}, 'weight', this.value)">
-              <select class="input-control" onchange="TrainingApp.updateDayExerciseField(${item.id}, 'weight_unit', this.value)">
-                <option value="kg" ${item.weight_unit === 'kg' ? 'selected' : ''}>kg</option>
-                <option value="bolso kg" ${item.weight_unit === 'bolso kg' ? 'selected' : ''}>bolso kg</option>
-                <option value="lastre kg" ${item.weight_unit === 'lastre kg' ? 'selected' : ''}>lastre</option>
-                <option value="peso corporal" ${item.weight_unit === 'peso corporal' ? 'selected' : ''}>corporal</option>
-                <option value="lbs" ${item.weight_unit === 'lbs' ? 'selected' : ''}>lbs</option>
+        <!-- Tabla Dinámica de Sobrecarga Progresiva (N Series) -->
+        <div class="sets-progressive-box">
+          <div class="sets-toolbar">
+            <div class="sets-toolbar-left">
+              <span class="sets-toolbar-label"><i class="fa-solid fa-layer-group" style="color: var(--indigo-600); margin-right: 4px;"></i> Series:</span>
+              <input type="number" min="1" max="20" class="sets-count-input" value="${setsDetail.length}"
+                     onchange="TrainingApp.changeItemSetsCount(${item.id}, this.value)">
+              <select class="sets-unit-select" onchange="TrainingApp.updateDayExerciseField(${item.id}, 'weight_unit', this.value, true)">
+                <option value="kg" ${unit === 'kg' ? 'selected' : ''}>kg</option>
+                <option value="bolso kg" ${unit === 'bolso kg' ? 'selected' : ''}>bolso kg</option>
+                <option value="lastre kg" ${unit === 'lastre kg' ? 'selected' : ''}>lastre kg</option>
+                <option value="lbs" ${unit === 'lbs' ? 'selected' : ''}>lbs</option>
+                <option value="peso corporal" ${unit === 'peso corporal' ? 'selected' : ''}>corporal</option>
               </select>
+            </div>
+            <div class="day-ex-totals-pills">
+              <span class="total-pill pr" id="item-maxw-${item.id}">Máx: ${maxW} ${this.escapeHtml(unit)}</span>
+              <span class="total-pill volume" id="item-vol-${item.id}">Carga total: ${Math.round(totalVol * 100) / 100} ${this.escapeHtml(unit)}</span>
             </div>
           </div>
 
-          <!-- Notas de la Sesión -->
-          <div class="input-field-group">
-            <label>Notas de la sesión</label>
-            <input type="text" class="input-control" value="${this.escapeHtml(item.notes || '')}"
-                   placeholder="ej. Sentí fácil, subir peso la próxima..."
-                   onchange="TrainingApp.updateDayExerciseField(${item.id}, 'notes', this.value)">
+          <div class="sets-rows-header">
+            <div>Serie</div>
+            <div>Reps</div>
+            <div>Peso (${this.escapeHtml(unit)})</div>
+            <div style="text-align: center;">Carga</div>
+            <div style="text-align: center;">Ok</div>
           </div>
 
-          <!-- Botón de Completado -->
+          <div id="sets-list-${item.id}">
+            ${setsRowsHtml}
+          </div>
+        </div>
+
+        <!-- Notas y Botón de Completado -->
+        <div class="day-ex-footer-bar">
+          <div style="flex: 1; min-width: 220px;">
+            <input type="text" class="input-control" value="${this.escapeHtml(item.notes || '')}"
+                   placeholder="Notas de la sesión (ej. subí 2.5 kg en la última serie)..."
+                   onchange="TrainingApp.updateDayExerciseField(${item.id}, 'notes', this.value)">
+          </div>
           <div>
             <button type="button" class="btn-complete-toggle ${isCompleted ? 'is-done' : ''}"
                     onclick="TrainingApp.toggleComplete(${item.id}, ${isCompleted ? 1 : 0})">
               <i class="fa-solid ${isCompleted ? 'fa-circle-check' : 'fa-circle'}"></i>
-              <span>${isCompleted ? 'Completado' : 'Marcar Hecho'}</span>
+              <span>${isCompleted ? 'Completado' : 'Completar Todo'}</span>
             </button>
           </div>
-
         </div>
 
       </article>
     `;
+  },
+
+  onSetInputChange(itemId, setIdx, field, value) {
+    const item = this.state.dayExercises.find(i => i.id === itemId);
+    if (!item || !item.sets_detail || !item.sets_detail[setIdx]) return;
+
+    const val = field === 'reps' ? (parseInt(value, 10) || 0) : (parseFloat(value) || 0);
+    item.sets_detail[setIdx][field] = val;
+
+    const s = item.sets_detail[setIdx];
+    const load = Math.round(((parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0)) * 100) / 100;
+    s.load = load;
+    const unit = item.weight_unit || s.weight_unit || 'kg';
+
+    const loadEl = document.getElementById(`set-load-${itemId}-${setIdx}`);
+    if (loadEl) loadEl.textContent = `${load} ${unit}`;
+
+    const totalVol = item.sets_detail.reduce((acc, x) => acc + ((parseFloat(x.reps) || 0) * (parseFloat(x.weight) || 0)), 0);
+    const maxW = Math.max(...item.sets_detail.map(x => parseFloat(x.weight) || 0), 0);
+
+    const volEl = document.getElementById(`item-vol-${itemId}`);
+    const maxEl = document.getElementById(`item-maxw-${itemId}`);
+    if (volEl) volEl.textContent = `Carga total: ${Math.round(totalVol * 100) / 100} ${unit}`;
+    if (maxEl) maxEl.textContent = `Máx: ${maxW} ${unit}`;
+  },
+
+  async saveItemSets(itemId) {
+    const item = this.state.dayExercises.find(i => i.id === itemId);
+    if (!item || !item.sets_detail) return;
+    try {
+      const res = await fetch(`/api/personal/day/exercises/${itemId}/sets`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sets_detail: item.sets_detail })
+      });
+      const data = await res.json();
+      if (data.success && data.item) {
+        const idx = this.state.dayExercises.findIndex(i => i.id === itemId);
+        if (idx !== -1) this.state.dayExercises[idx] = data.item;
+        await this.refreshMonthSummary();
+        this.showToast('Serie guardada en bitácora', 'success', 1200);
+      }
+    } catch (e) {
+      console.error("Error guardando series:", e);
+    }
+  },
+
+  async toggleSetDone(itemId, setIdx) {
+    const item = this.state.dayExercises.find(i => i.id === itemId);
+    if (!item || !item.sets_detail || !item.sets_detail[setIdx]) return;
+    const s = item.sets_detail[setIdx];
+    s.completed = s.completed ? 0 : 1;
+    await this.saveItemSets(itemId);
+    this.renderDayWorkout();
+  },
+
+  async changeItemSetsCount(itemId, newCountRaw) {
+    const newCount = Math.max(1, Math.min(20, parseInt(newCountRaw, 10) || 1));
+    await this.updateDayExerciseField(itemId, 'sets', newCount, true);
   },
 
   // =========================================================================
@@ -499,7 +604,7 @@ const TrainingApp = {
     }
   },
 
-  async updateDayExerciseField(itemId, field, value) {
+  async updateDayExerciseField(itemId, field, value, reRender = false) {
     try {
       const payload = {};
       payload[field] = value;
@@ -514,6 +619,10 @@ const TrainingApp = {
         // Actualizar en el estado local
         const idx = this.state.dayExercises.findIndex(i => i.id === itemId);
         if (idx !== -1) this.state.dayExercises[idx] = data.item;
+        if (reRender) {
+          this.renderDayWorkout();
+          await this.refreshMonthSummary();
+        }
         this.showToast('Registro actualizado', 'success', 1500);
       }
     } catch (e) {
@@ -729,9 +838,15 @@ const TrainingApp = {
     document.getElementById('form-ex-equip').value = 'Bolso con peso / Calistenia';
     document.getElementById('form-ex-desc').value = '';
     document.getElementById('form-ex-sets').value = 4;
-    document.getElementById('form-ex-reps').value = '10-12';
-    document.getElementById('form-ex-weight').value = 0;
+    document.getElementById('form-ex-unit').value = 'kg';
 
+    this.state.modalTemplateSets = [
+      { set_number: 1, reps: 12, weight: 0 },
+      { set_number: 2, reps: 10, weight: 0 },
+      { set_number: 3, reps: 10, weight: 0 },
+      { set_number: 4, reps: 8, weight: 0 }
+    ];
+    this.renderLibraryTemplateSets();
     this.openModal('modal-exercise-edit');
   },
 
@@ -745,11 +860,80 @@ const TrainingApp = {
     document.getElementById('form-ex-muscle').value = ex.muscle_group || '';
     document.getElementById('form-ex-equip').value = ex.equipment || '';
     document.getElementById('form-ex-desc').value = ex.description || '';
-    document.getElementById('form-ex-sets').value = ex.default_sets || 4;
-    document.getElementById('form-ex-reps').value = ex.default_reps || '10-12';
-    document.getElementById('form-ex-weight').value = ex.default_weight || 0;
+
+    const tsets = Array.isArray(ex.template_sets) && ex.template_sets.length > 0
+      ? ex.template_sets.map(s => ({ ...s }))
+      : Array.from({ length: Math.max(1, ex.default_sets || 4) }, (_, idx) => ({
+          set_number: idx + 1,
+          reps: parseInt(ex.default_reps, 10) || 10,
+          weight: parseFloat(ex.default_weight) || 0,
+          weight_unit: 'kg'
+        }));
+
+    document.getElementById('form-ex-sets').value = tsets.length;
+    document.getElementById('form-ex-unit').value = (tsets[0] && tsets[0].weight_unit) ? tsets[0].weight_unit : 'kg';
+    this.state.modalTemplateSets = tsets;
+    this.renderLibraryTemplateSets();
 
     this.openModal('modal-exercise-edit');
+  },
+
+  renderLibraryTemplateSets() {
+    const container = document.getElementById('form-ex-template-sets-container');
+    if (!container) return;
+
+    const count = Math.max(1, Math.min(20, parseInt(document.getElementById('form-ex-sets').value, 10) || 1));
+    const unit = document.getElementById('form-ex-unit').value || 'kg';
+    let current = this.state.modalTemplateSets || [];
+
+    // Ajustar tamaño manteniendo valores previos
+    if (current.length < count) {
+      const last = current[current.length - 1] || { reps: 10, weight: 0 };
+      while (current.length < count) {
+        current.push({ set_number: current.length + 1, reps: last.reps, weight: last.weight, weight_unit: unit });
+      }
+    } else if (current.length > count) {
+      current = current.slice(0, count);
+    }
+    this.state.modalTemplateSets = current;
+
+    container.innerHTML = current.map((s, idx) => {
+      const load = Math.round(((parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0)) * 100) / 100;
+      return `
+        <div class="modal-set-row">
+          <div class="set-num-badge">Serie ${idx + 1}</div>
+          <div>
+            <input type="number" min="0" class="set-input-cell" value="${s.reps}"
+                   oninput="TrainingApp.onModalSetChange(${idx}, 'reps', this.value)">
+          </div>
+          <div>
+            <input type="number" step="0.5" min="0" class="set-input-cell" value="${s.weight}"
+                   oninput="TrainingApp.onModalSetChange(${idx}, 'weight', this.value)">
+          </div>
+          <div class="set-load-pill" id="modal-set-load-${idx}">${load} ${this.escapeHtml(unit)}</div>
+        </div>
+      `;
+    }).join('');
+
+    this.recalcLibraryModalVolume();
+  },
+
+  onModalSetChange(idx, field, val) {
+    if (!this.state.modalTemplateSets || !this.state.modalTemplateSets[idx]) return;
+    this.state.modalTemplateSets[idx][field] = field === 'reps' ? (parseInt(val, 10) || 0) : (parseFloat(val) || 0);
+    const s = this.state.modalTemplateSets[idx];
+    const unit = document.getElementById('form-ex-unit').value || 'kg';
+    const load = Math.round(((parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0)) * 100) / 100;
+    const el = document.getElementById(`modal-set-load-${idx}`);
+    if (el) el.textContent = `${load} ${unit}`;
+    this.recalcLibraryModalVolume();
+  },
+
+  recalcLibraryModalVolume() {
+    const unit = document.getElementById('form-ex-unit').value || 'kg';
+    const total = (this.state.modalTemplateSets || []).reduce((acc, s) => acc + ((parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0)), 0);
+    const badge = document.getElementById('form-ex-total-volume-badge');
+    if (badge) badge.textContent = `Volumen total: ${Math.round(total * 100) / 100} ${unit}`;
   },
 
   async saveExerciseForm(e) {
@@ -760,8 +944,15 @@ const TrainingApp = {
     const equip = document.getElementById('form-ex-equip').value.trim();
     const desc = document.getElementById('form-ex-desc').value.trim();
     const sets = parseInt(document.getElementById('form-ex-sets').value, 10) || 4;
-    const reps = document.getElementById('form-ex-reps').value.trim() || '10-12';
-    const weight = parseFloat(document.getElementById('form-ex-weight').value) || 0;
+    const unit = document.getElementById('form-ex-unit').value || 'kg';
+    const templateSets = (this.state.modalTemplateSets || []).map((s, idx) => ({
+      set_number: idx + 1,
+      reps: parseInt(s.reps, 10) || 0,
+      weight: parseFloat(s.weight) || 0,
+      weight_unit: unit
+    }));
+    const maxW = Math.max(...templateSets.map(s => s.weight), 0);
+    const repsStr = templateSets.map(s => s.reps).join('-');
 
     try {
       if (id) {
@@ -775,14 +966,15 @@ const TrainingApp = {
             equipment: equip,
             description: desc,
             default_sets: sets,
-            default_reps: reps,
-            default_weight: weight
+            default_reps: repsStr,
+            default_weight: maxW,
+            template_sets: templateSets
           })
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
         this.state.exercises = data.exercises || [];
-        this.showToast('Ejercicio actualizado');
+        this.showToast('Ejercicio y series progresivas actualizadas');
       } else {
         // Crear nuevo
         const res = await fetch('/api/exercises', {
@@ -796,15 +988,16 @@ const TrainingApp = {
             difficulty: 'Intermedio',
             description: desc,
             default_sets: sets,
-            default_reps: reps,
-            default_weight: weight,
-            default_rest: '90 seg'
+            default_reps: repsStr,
+            default_weight: maxW,
+            default_rest: '90 seg',
+            template_sets: templateSets
           })
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
         if (data.exercises) this.state.exercises = data.exercises;
-        this.showToast('Nuevo ejercicio registrado en la biblioteca');
+        this.showToast('Nuevo ejercicio registrado con carga progresiva');
       }
 
       this.closeModal('modal-exercise-edit');
@@ -884,17 +1077,20 @@ const TrainingApp = {
       timelineBox.innerHTML = history.map(h => {
         const d = new Date(h.date + 'T00:00:00');
         const formattedDate = `${this.DAY_NAMES[d.getDay()]} ${d.getDate()} ${this.MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+        const unit = h.weight_unit || 'kg';
+        const setsChips = Array.isArray(h.sets_detail) && h.sets_detail.length > 0
+          ? `<div class="sets-chips-inline" style="margin-top: 6px;">${h.sets_detail.map(s => `<span class="set-chip">S${s.set_number}: <b>${s.reps}×${s.weight}${unit}</b></span>`).join('')}</div>`
+          : `<div style="font-size: 0.85rem; color: var(--text-main); margin-top: 2px;"><strong>${h.sets} series</strong> × <strong>${this.escapeHtml(h.reps)} reps</strong></div>`;
         return `
-          <div class="history-entry-item">
+          <div class="history-entry-item" style="align-items: flex-start;">
             <div>
               <div class="history-entry-date">${formattedDate}</div>
-              <div style="font-size: 0.85rem; color: var(--text-main); margin-top: 2px;">
-                <strong>${h.sets} series</strong> × <strong>${this.escapeHtml(h.reps)} reps</strong>
-                ${h.notes ? `<span class="history-entry-notes">· "${this.escapeHtml(h.notes)}"</span>` : ''}
-              </div>
+              ${setsChips}
+              ${h.notes ? `<div class="history-entry-notes" style="margin-top: 4px;">"${this.escapeHtml(h.notes)}"</div>` : ''}
             </div>
-            <div>
-              <span class="history-entry-load">${h.weight} ${this.escapeHtml(h.weight_unit || 'kg')}</span>
+            <div style="text-align: right;">
+              <span class="history-entry-load">Máx: ${h.max_weight ?? h.weight} ${this.escapeHtml(unit)}</span>
+              ${h.total_volume !== undefined ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; margin-top: 4px;">Volumen: ${h.total_volume} ${this.escapeHtml(unit)}</div>` : ''}
             </div>
           </div>
         `;
@@ -926,16 +1122,22 @@ const TrainingApp = {
             ${history.map(h => {
               const d = new Date(h.date + 'T00:00:00');
               const fDate = `${d.getDate()} de ${this.MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+              const unit = h.weight_unit || 'kg';
+              const setsHtml = Array.isArray(h.sets_detail) && h.sets_detail.length > 0
+                ? `<div class="sets-chips-inline" style="margin-top: 6px;">${h.sets_detail.map(s => `<span class="set-chip">S${s.set_number}: <b>${s.reps}×${s.weight}${unit}</b></span>`).join('')}</div>`
+                : `<div style="font-size: 0.82rem; color: var(--text-muted);">${h.sets} series x ${this.escapeHtml(h.reps)} reps</div>`;
               return `
-                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface-alt); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-light);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; background: var(--bg-surface-alt); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-light);">
                   <div>
                     <strong style="color: var(--indigo-950);">${fDate}</strong>
-                    <div style="font-size: 0.82rem; color: var(--text-muted);">${h.sets} series x ${this.escapeHtml(h.reps)} reps ${h.notes ? `· "${this.escapeHtml(h.notes)}"` : ''}</div>
+                    ${setsHtml}
+                    ${h.notes ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">"${this.escapeHtml(h.notes)}"</div>` : ''}
                   </div>
-                  <div>
-                    <span style="font-weight: 800; color: var(--apple-700); background: var(--apple-100); padding: 3px 8px; border-radius: 999px; font-size: 0.85rem;">
-                      ${h.weight} ${this.escapeHtml(h.weight_unit || 'kg')}
+                  <div style="text-align: right; flex-shrink: 0;">
+                    <span style="font-weight: 800; color: var(--apple-700); background: var(--apple-100); padding: 3px 8px; border-radius: 999px; font-size: 0.82rem;">
+                      Máx: ${h.max_weight ?? h.weight} ${this.escapeHtml(unit)}
                     </span>
+                    ${h.total_volume !== undefined ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; margin-top: 4px;">Vol: ${h.total_volume} ${this.escapeHtml(unit)}</div>` : ''}
                   </div>
                 </div>
               `;

@@ -8,6 +8,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'training.db')
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON')
     return conn
 
 def init_db():
@@ -152,6 +153,34 @@ def init_db():
                 order_index INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE SET NULL
+            )
+        ''')
+
+        # Tabla de Series Plantilla por Ejercicio en Biblioteca (Carga Progresiva Base)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS exercise_template_sets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exercise_id INTEGER NOT NULL,
+                set_number INTEGER NOT NULL,
+                reps INTEGER DEFAULT 10,
+                weight REAL DEFAULT 0.0,
+                weight_unit TEXT DEFAULT 'kg',
+                FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Tabla de Series Detalladas por Día y Ejercicio (Bitácora Exacta Serie x Serie)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_workout_sets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
+                set_number INTEGER NOT NULL,
+                reps INTEGER DEFAULT 10,
+                weight REAL DEFAULT 0.0,
+                weight_unit TEXT DEFAULT 'kg',
+                completed INTEGER DEFAULT 0,
+                notes TEXT DEFAULT '',
+                FOREIGN KEY (item_id) REFERENCES daily_workout_items(id) ON DELETE CASCADE
             )
         ''')
 
@@ -406,6 +435,32 @@ def delete_student(student_id):
         return cursor.rowcount > 0
 
 # ==================== MÉTODOS DE BIBLIOTECA DE EJERCICIOS ====================
+def _parse_reps_int(reps_val, default=10):
+    """Convierte valores como '10-12', '10', 'Al fallo' a un entero positivo para cálculo de carga."""
+    if reps_val is None:
+        return default
+    if isinstance(reps_val, (int, float)):
+        return max(0, int(reps_val))
+    s = str(reps_val).strip()
+    if not s:
+        return default
+    import re
+    m = re.search(r'\d+', s)
+    return int(m.group()) if m else default
+
+def _save_exercise_template_sets(cursor, exercise_id, template_sets, default_unit='kg'):
+    cursor.execute('DELETE FROM exercise_template_sets WHERE exercise_id = ?', (exercise_id,))
+    if not template_sets:
+        return
+    for idx, s in enumerate(template_sets, start=1):
+        reps = _parse_reps_int(s.get('reps'), 10)
+        weight = float(s.get('weight') or 0.0)
+        unit = str(s.get('weight_unit') or default_unit).strip() or 'kg'
+        cursor.execute('''
+            INSERT INTO exercise_template_sets (exercise_id, set_number, reps, weight, weight_unit)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (exercise_id, idx, reps, weight, unit))
+
 def get_exercises(muscle_group=None, query=None):
     with get_db() as conn:
         cursor = conn.cursor()
@@ -422,7 +477,37 @@ def get_exercises(muscle_group=None, query=None):
         sql += ' ORDER BY muscle_group ASC, name ASC'
         cursor.execute(sql, params)
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+
+        cursor.execute('SELECT * FROM exercise_template_sets ORDER BY exercise_id ASC, set_number ASC')
+        all_tsets = cursor.fetchall()
+        tsets_map = {}
+        for ts in all_tsets:
+            tsets_map.setdefault(ts['exercise_id'], []).append(dict(ts))
+
+        result = []
+        for row in rows:
+            d = dict(row)
+            tsets = tsets_map.get(d['id'])
+            if not tsets:
+                n_sets = max(1, int(d.get('default_sets') or 4))
+                r_int = _parse_reps_int(d.get('default_reps'), 10)
+                w_val = float(d.get('default_weight') or 0.0)
+                tsets = [
+                    {
+                        'set_number': i,
+                        'reps': r_int,
+                        'weight': w_val,
+                        'weight_unit': 'kg',
+                        'load': round(r_int * w_val, 2)
+                    }
+                    for i in range(1, n_sets + 1)
+                ]
+            else:
+                for s in tsets:
+                    s['load'] = round(_parse_reps_int(s.get('reps'), 0) * float(s.get('weight') or 0.0), 2)
+            d['template_sets'] = tsets
+            result.append(d)
+        return result
 
 def get_muscle_groups():
     with get_db() as conn:
@@ -436,15 +521,24 @@ def get_muscle_groups():
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
-def create_exercise(name, muscle_group, secondary_muscle, equipment, difficulty, description, default_sets=4, default_reps='10-12', default_weight=20.0, default_rest='90 seg'):
+def create_exercise(name, muscle_group, secondary_muscle, equipment, difficulty, description, default_sets=4, default_reps='10-12', default_weight=20.0, default_rest='90 seg', template_sets=None):
     with get_db() as conn:
         cursor = conn.cursor()
+        if template_sets and isinstance(template_sets, list) and len(template_sets) > 0:
+            default_sets = len(template_sets)
+            default_weight = max((float(s.get('weight') or 0.0) for s in template_sets), default=0.0)
+            reps_list = [str(_parse_reps_int(s.get('reps'), 10)) for s in template_sets]
+            default_reps = reps_list[0] if len(set(reps_list)) == 1 else '-'.join(reps_list[:4])
+
         cursor.execute('''
             INSERT INTO exercises (name, muscle_group, secondary_muscle, equipment, difficulty, description, default_sets, default_reps, default_weight, default_rest, is_custom)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-        ''', (name.strip(), muscle_group.strip(), secondary_muscle.strip(), equipment.strip(), difficulty.strip(), description.strip(), default_sets, default_reps, default_weight, default_rest))
+        ''', (name.strip(), muscle_group.strip(), secondary_muscle.strip(), equipment.strip(), difficulty.strip(), description.strip(), int(default_sets), str(default_reps), float(default_weight), default_rest))
+        new_id = cursor.lastrowid
+        if template_sets and isinstance(template_sets, list):
+            _save_exercise_template_sets(cursor, new_id, template_sets)
         conn.commit()
-        return cursor.lastrowid
+        return new_id
 
 def delete_exercise(exercise_id):
     with get_db() as conn:
@@ -780,10 +874,58 @@ def delete_calendar_event(event_id):
 
 # ==================== MÉTODOS DEL CALENDARIO PERSONAL Y BITÁCORA ====================
 
+def _enrich_item_with_sets(cursor, d):
+    """Adjunta las series detalladas (daily_workout_sets) y calcula volumen total y peso máximo."""
+    cursor.execute('''
+        SELECT * FROM daily_workout_sets
+        WHERE item_id = ?
+        ORDER BY set_number ASC, id ASC
+    ''', (d['id'],))
+    sets_rows = [dict(sr) for sr in cursor.fetchall()]
+
+    if not sets_rows:
+        n_sets = max(1, int(d.get('sets') or 4))
+        r_int = _parse_reps_int(d.get('reps'), 10)
+        w_val = float(d.get('weight') or 0.0)
+        u_val = str(d.get('weight_unit') or 'kg')
+        comp = int(d.get('completed') or 0)
+        for i in range(1, n_sets + 1):
+            cursor.execute('''
+                INSERT INTO daily_workout_sets (item_id, set_number, reps, weight, weight_unit, completed, notes)
+                VALUES (?, ?, ?, ?, ?, ?, '')
+            ''', (d['id'], i, r_int, w_val, u_val, comp))
+        cursor.execute('''
+            SELECT * FROM daily_workout_sets
+            WHERE item_id = ?
+            ORDER BY set_number ASC, id ASC
+        ''', (d['id'],))
+        sets_rows = [dict(sr) for sr in cursor.fetchall()]
+
+    total_vol = 0.0
+    max_w = 0.0
+    total_reps = 0
+    for s in sets_rows:
+        r_i = _parse_reps_int(s.get('reps'), 0)
+        w_f = float(s.get('weight') or 0.0)
+        load = round(r_i * w_f, 2)
+        s['reps'] = r_i
+        s['weight'] = w_f
+        s['load'] = load
+        total_vol += load
+        total_reps += r_i
+        if w_f > max_w:
+            max_w = w_f
+
+    d['sets_detail'] = sets_rows
+    d['total_volume'] = round(total_vol, 2)
+    d['max_weight'] = round(max_w, 2)
+    d['total_reps'] = total_reps
+    return d
+
 def get_last_session_for_exercise(exercise_name, before_date=None):
     """
     Obtiene la última sesión previa donde se realizó este ejercicio (para memoria histórica).
-    Permite saber con qué peso y reps te quedaste incluso si no entrenaste en semanas.
+    Incluye las series detalladas (reps, peso y carga) de esa última sesión.
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -802,6 +944,8 @@ def get_last_session_for_exercise(exercise_name, before_date=None):
         if not row:
             return None
         d = dict(row)
+        _enrich_item_with_sets(cursor, d)
+        conn.commit()
         try:
             today_ref = datetime.strptime(before_date, '%Y-%m-%d').date() if before_date else date.today()
             item_date = datetime.strptime(d['date'], '%Y-%m-%d').date()
@@ -811,7 +955,7 @@ def get_last_session_for_exercise(exercise_name, before_date=None):
         return d
 
 def get_day_exercises(date_str):
-    """Devuelve todos los ejercicios asignados/realizados en una fecha con su última sesión histórica."""
+    """Devuelve todos los ejercicios asignados/realizados en una fecha con sus series progresivas y última sesión."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -823,17 +967,20 @@ def get_day_exercises(date_str):
         items = []
         for r in rows:
             d = dict(r)
+            _enrich_item_with_sets(cursor, d)
             d['last_session'] = get_last_session_for_exercise(d['exercise_name'], before_date=date_str)
             items.append(d)
+        conn.commit()
         return items
 
 def add_exercise_to_day(date_str, exercise_id=None, custom_name=None, sets=None, reps=None, weight=None, weight_unit='kg', notes='', description=''):
-    """Agrega un ejercicio libremente a un día específico."""
+    """Agrega un ejercicio libremente a un día específico, clonando sus series de plantilla o última sesión."""
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M')
     name = custom_name
     category = 'General'
     equipment = 'Peso corporal / Bolso'
     desc = description
+    template_sets = []
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -850,16 +997,43 @@ def add_exercise_to_day(date_str, exercise_id=None, custom_name=None, sets=None,
                 if reps is None: reps = ex_dict.get('default_reps', '10-12')
                 if weight is None: weight = ex_dict.get('default_weight', 0.0)
 
+            cursor.execute('SELECT * FROM exercise_template_sets WHERE exercise_id = ? ORDER BY set_number ASC', (exercise_id,))
+            template_sets = [dict(ts) for ts in cursor.fetchall()]
+
         if sets is None: sets = 4
         if reps is None: reps = '10-12'
         if weight is None: weight = 0.0
         if not name: name = 'Ejercicio'
 
-        # Auto-detectar última carga histórica si no se especificó peso
         last_s = get_last_session_for_exercise(name, before_date=date_str)
-        if last_s and (weight is None or weight == 0):
-            weight = last_s.get('weight', 0.0)
+
+        # Determinar series iniciales: prioridad última sesión si existe, sino plantilla de biblioteca, sino valores default
+        initial_sets = []
+        if last_s and last_s.get('sets_detail'):
+            for s in last_s['sets_detail']:
+                initial_sets.append({
+                    'reps': _parse_reps_int(s.get('reps'), 10),
+                    'weight': float(s.get('weight') or 0.0),
+                    'weight_unit': s.get('weight_unit') or weight_unit
+                })
+            weight = last_s.get('max_weight', last_s.get('weight', 0.0))
             weight_unit = last_s.get('weight_unit', weight_unit)
+            sets = len(initial_sets)
+        elif template_sets:
+            for ts in template_sets:
+                initial_sets.append({
+                    'reps': _parse_reps_int(ts.get('reps'), 10),
+                    'weight': float(ts.get('weight') or 0.0),
+                    'weight_unit': ts.get('weight_unit') or weight_unit
+                })
+            sets = len(initial_sets)
+            weight = max((s['weight'] for s in initial_sets), default=float(weight))
+            weight_unit = initial_sets[0]['weight_unit']
+        else:
+            r_int = _parse_reps_int(reps, 10)
+            w_val = float(weight)
+            for _ in range(max(1, int(sets))):
+                initial_sets.append({'reps': r_int, 'weight': w_val, 'weight_unit': weight_unit})
 
         cursor.execute('SELECT MAX(order_index) as max_idx FROM daily_workout_items WHERE date = ?', (date_str,))
         max_row = cursor.fetchone()
@@ -871,17 +1045,70 @@ def add_exercise_to_day(date_str, exercise_id=None, custom_name=None, sets=None,
                 sets, reps, weight, weight_unit, notes, completed, order_index, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
         ''', (date_str, exercise_id, name.strip(), category, equipment, desc, int(sets), str(reps).strip(), float(weight), weight_unit.strip(), notes.strip(), next_order, now_str))
-        
-        conn.commit()
         new_id = cursor.lastrowid
-        
+
+        for idx, s in enumerate(initial_sets, start=1):
+            cursor.execute('''
+                INSERT INTO daily_workout_sets (item_id, set_number, reps, weight, weight_unit, completed, notes)
+                VALUES (?, ?, ?, ?, ?, 0, '')
+            ''', (new_id, idx, s['reps'], s['weight'], s['weight_unit']))
+
+        conn.commit()
         cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (new_id,))
         item = dict(cursor.fetchone())
+        _enrich_item_with_sets(cursor, item)
         item['last_session'] = last_s
         return item
 
+def save_day_exercise_sets(item_id, sets_list):
+    """Guarda todas las filas de series progresivas (reps, peso, completado) para un ejercicio del día."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (item_id,))
+        item = cursor.fetchone()
+        if not item:
+            return None
+        d = dict(item)
+        default_unit = d.get('weight_unit') or 'kg'
+
+        cursor.execute('DELETE FROM daily_workout_sets WHERE item_id = ?', (item_id,))
+        clean_sets = sets_list if sets_list else [{'reps': 10, 'weight': 0.0, 'weight_unit': default_unit, 'completed': 0}]
+
+        max_w = 0.0
+        reps_summary = []
+        all_done = 1 if len(clean_sets) > 0 else 0
+
+        for idx, s in enumerate(clean_sets, start=1):
+            r_int = _parse_reps_int(s.get('reps'), 0)
+            w_val = float(s.get('weight') or 0.0)
+            u_val = str(s.get('weight_unit') or default_unit).strip() or 'kg'
+            comp = 1 if s.get('completed') in (1, True, '1', 'true') else 0
+            if not comp:
+                all_done = 0
+            if w_val > max_w:
+                max_w = w_val
+            reps_summary.append(str(r_int))
+            cursor.execute('''
+                INSERT INTO daily_workout_sets (item_id, set_number, reps, weight, weight_unit, completed, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (item_id, idx, r_int, w_val, u_val, comp, str(s.get('notes') or '').strip()))
+
+        reps_str = reps_summary[0] if len(set(reps_summary)) == 1 else '-'.join(reps_summary[:5])
+        cursor.execute('''
+            UPDATE daily_workout_items
+            SET sets = ?, reps = ?, weight = ?, completed = ?
+            WHERE id = ?
+        ''', (len(clean_sets), reps_str, max_w, all_done, item_id))
+
+        conn.commit()
+        cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (item_id,))
+        updated = dict(cursor.fetchone())
+        _enrich_item_with_sets(cursor, updated)
+        updated['last_session'] = get_last_session_for_exercise(updated['exercise_name'], before_date=updated['date'])
+        return updated
+
 def update_day_exercise(item_id, sets=None, reps=None, weight=None, weight_unit=None, notes=None, completed=None, description=None):
-    """Actualiza series, reps, peso, notas o estado completado de un ejercicio en el día."""
+    """Actualiza campos generales de un ejercicio en el día y ajusta la cantidad de filas si cambia el número de series."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (item_id,))
@@ -890,7 +1117,7 @@ def update_day_exercise(item_id, sets=None, reps=None, weight=None, weight_unit=
             return None
         d = dict(item)
         
-        new_sets = d['sets'] if sets is None else int(sets)
+        new_sets = d['sets'] if sets is None else max(1, int(sets))
         new_reps = d['reps'] if reps is None else str(reps).strip()
         new_weight = d['weight'] if weight is None else float(weight)
         new_unit = d['weight_unit'] if weight_unit is None else str(weight_unit).strip()
@@ -904,12 +1131,36 @@ def update_day_exercise(item_id, sets=None, reps=None, weight=None, weight_unit=
             WHERE id = ?
         ''', (new_sets, new_reps, new_weight, new_unit, new_notes, new_completed, new_desc, item_id))
 
+        # Ajustar tabla daily_workout_sets si cambió el número de series
+        if sets is not None:
+            cursor.execute('SELECT * FROM daily_workout_sets WHERE item_id = ? ORDER BY set_number ASC', (item_id,))
+            existing_sets = [dict(sr) for sr in cursor.fetchall()]
+            curr_len = len(existing_sets)
+            if new_sets > curr_len:
+                last_r = existing_sets[-1]['reps'] if existing_sets else _parse_reps_int(new_reps, 10)
+                last_w = existing_sets[-1]['weight'] if existing_sets else new_weight
+                last_u = existing_sets[-1]['weight_unit'] if existing_sets else new_unit
+                for i in range(curr_len + 1, new_sets + 1):
+                    cursor.execute('''
+                        INSERT INTO daily_workout_sets (item_id, set_number, reps, weight, weight_unit, completed, notes)
+                        VALUES (?, ?, ?, ?, ?, 0, '')
+                    ''', (item_id, i, last_r, last_w, last_u))
+            elif new_sets < curr_len:
+                cursor.execute('DELETE FROM daily_workout_sets WHERE item_id = ? AND set_number > ?', (item_id, new_sets))
+
+        if weight_unit is not None:
+            cursor.execute('UPDATE daily_workout_sets SET weight_unit = ? WHERE item_id = ?', (new_unit, item_id))
+
+        if completed is not None:
+            cursor.execute('UPDATE daily_workout_sets SET completed = ? WHERE item_id = ?', (new_completed, item_id))
+
         if description is not None and d.get('exercise_id'):
             cursor.execute('UPDATE exercises SET description = ? WHERE id = ?', (new_desc, d['exercise_id']))
 
         conn.commit()
         cursor.execute('SELECT * FROM daily_workout_items WHERE id = ?', (item_id,))
         updated = dict(cursor.fetchone())
+        _enrich_item_with_sets(cursor, updated)
         updated['last_session'] = get_last_session_for_exercise(updated['exercise_name'], before_date=updated['date'])
         return updated
 
@@ -922,33 +1173,46 @@ def delete_day_exercise(item_id):
         return cursor.rowcount > 0
 
 def get_calendar_month_summary(year, month):
-    """Devuelve el resumen de actividades por cada día del mes para pintar el calendario."""
+    """Devuelve el resumen de actividades y volumen real (reps * peso) por cada día del mes."""
     prefix = f"{year:04d}-{month:02d}%"
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT date, 
-                   COUNT(*) as total_exercises,
-                   SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_exercises,
-                   SUM(weight * sets) as total_volume
-            FROM daily_workout_items
-            WHERE date LIKE ?
-            GROUP BY date
-            ORDER BY date ASC
+            SELECT i.date,
+                   COUNT(DISTINCT i.id) as total_exercises,
+                   COUNT(DISTINCT CASE WHEN i.completed = 1 THEN i.id END) as completed_exercises
+            FROM daily_workout_items i
+            WHERE i.date LIKE ?
+            GROUP BY i.date
+            ORDER BY i.date ASC
         ''', (prefix,))
         rows = cursor.fetchall()
+
+        cursor.execute('''
+            SELECT i.date,
+                   COALESCE(SUM(s.reps * s.weight), 0) as sets_volume,
+                   COUNT(s.id) as sets_count
+            FROM daily_workout_items i
+            LEFT JOIN daily_workout_sets s ON i.id = s.item_id
+            WHERE i.date LIKE ?
+            GROUP BY i.date
+        ''', (prefix,))
+        vol_map = {r['date']: r['sets_volume'] for r in cursor.fetchall()}
+
         result = {}
         for r in rows:
-            result[r['date']] = {
+            dt = r['date']
+            vol = vol_map.get(dt, 0.0) or 0.0
+            result[dt] = {
                 'total': r['total_exercises'],
                 'completed': r['completed_exercises'],
-                'volume': round(r['total_volume'] or 0, 1),
+                'volume': round(vol, 1),
                 'status': 'completed' if r['completed_exercises'] == r['total_exercises'] and r['total_exercises'] > 0 else 'in_progress'
             }
         return result
 
 def get_exercise_history(exercise_name, limit=30):
-    """Devuelve la bitácora histórica completa de un ejercicio."""
+    """Devuelve la bitácora histórica completa de un ejercicio incluyendo el desglose serie por serie."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -958,18 +1222,23 @@ def get_exercise_history(exercise_name, limit=30):
             LIMIT ?
         ''', (exercise_name.strip(), limit))
         rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            _enrich_item_with_sets(cursor, d)
+            result.append(d)
+        conn.commit()
+        return result
 
 def get_personal_logbook(limit=30):
-    """Devuelve la bitácora cronológica con los entrenamientos realizados fecha por fecha."""
+    """Devuelve la bitácora cronológica con los entrenamientos realizados fecha por fecha y el detalle de series."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT date, 
                    COUNT(*) as total_exercises,
                    SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_exercises,
-                   SUM(sets) as total_sets,
-                   SUM(weight * sets) as total_volume
+                   SUM(sets) as total_sets
             FROM daily_workout_items
             GROUP BY date
             ORDER BY date DESC
@@ -984,19 +1253,139 @@ def get_personal_logbook(limit=30):
                 WHERE date = ?
                 ORDER BY order_index ASC, id ASC
             ''', (dr['date'],))
-            items = [dict(it) for it in cursor.fetchall()]
+            items = []
+            day_vol = 0.0
+            for it in cursor.fetchall():
+                it_dict = dict(it)
+                _enrich_item_with_sets(cursor, it_dict)
+                day_vol += it_dict.get('total_volume', 0.0)
+                items.append(it_dict)
+            d_dict['total_volume'] = round(day_vol, 1)
             d_dict['exercises'] = items
             logbook.append(d_dict)
+        conn.commit()
         return logbook
 
-def update_exercise_details(exercise_id, name, description, equipment, muscle_group, default_sets=4, default_reps='10-12', default_weight=0.0):
-    """Permite editar cualquier ejercicio de la biblioteca, incluyendo su descripción técnica."""
+def update_exercise_details(exercise_id, name, description, equipment, muscle_group, default_sets=4, default_reps='10-12', default_weight=0.0, template_sets=None):
+    """Permite editar cualquier ejercicio de la biblioteca, incluyendo sus series progresivas base."""
     with get_db() as conn:
         cursor = conn.cursor()
+        if template_sets and isinstance(template_sets, list) and len(template_sets) > 0:
+            default_sets = len(template_sets)
+            default_weight = max((float(s.get('weight') or 0.0) for s in template_sets), default=0.0)
+            reps_list = [str(_parse_reps_int(s.get('reps'), 10)) for s in template_sets]
+            default_reps = reps_list[0] if len(set(reps_list)) == 1 else '-'.join(reps_list[:4])
+
         cursor.execute('''
             UPDATE exercises
             SET name = ?, description = ?, equipment = ?, muscle_group = ?, default_sets = ?, default_reps = ?, default_weight = ?
             WHERE id = ?
         ''', (name.strip(), description.strip(), equipment.strip(), muscle_group.strip(), int(default_sets), str(default_reps).strip(), float(default_weight), exercise_id))
+        
+        if template_sets and isinstance(template_sets, list):
+            _save_exercise_template_sets(cursor, exercise_id, template_sets)
+
         conn.commit()
         return cursor.rowcount > 0
+
+# ==================== ESTADÍSTICAS Y SOBRECARGA PROGRESIVA ====================
+
+def get_stats_overview():
+    """Devuelve KPIs generales de progreso, lista de ejercicios entrenados y actividad reciente."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(DISTINCT date) as total_days, COUNT(*) as total_items FROM daily_workout_items')
+        counts = dict(cursor.fetchone())
+
+        cursor.execute('SELECT COUNT(*) as total_sets, COALESCE(SUM(reps * weight), 0) as total_vol, COALESCE(MAX(weight), 0) as max_w FROM daily_workout_sets')
+        s_stats = dict(cursor.fetchone())
+
+        cursor.execute('''
+            SELECT i.exercise_name, s.weight
+            FROM daily_workout_sets s
+            JOIN daily_workout_items i ON s.item_id = i.id
+            ORDER BY s.weight DESC
+            LIMIT 1
+        ''')
+        pr_row = cursor.fetchone()
+        pr_exercise = pr_row['exercise_name'] if pr_row else '-'
+
+        cursor.execute('''
+            SELECT exercise_name, COUNT(DISTINCT date) as sessions, MAX(date) as last_date
+            FROM daily_workout_items
+            GROUP BY LOWER(exercise_name)
+            ORDER BY sessions DESC, last_date DESC
+        ''')
+        exercises_list = [dict(r) for r in cursor.fetchall()]
+
+        cursor.execute('''
+            SELECT i.date, COALESCE(SUM(s.reps * s.weight), 0) as volume, COUNT(s.id) as sets_count
+            FROM daily_workout_items i
+            LEFT JOIN daily_workout_sets s ON i.id = s.item_id
+            GROUP BY i.date
+            ORDER BY i.date DESC
+            LIMIT 14
+        ''')
+        recent_activity = [dict(r) for r in cursor.fetchall()]
+        recent_activity.reverse()
+
+        return {
+            'total_days': counts['total_days'] or 0,
+            'total_exercises_logged': counts['total_items'] or 0,
+            'total_sets': s_stats['total_sets'] or 0,
+            'total_volume': round(s_stats['total_vol'] or 0.0, 1),
+            'max_weight_ever': round(s_stats['max_w'] or 0.0, 1),
+            'pr_exercise': pr_exercise,
+            'exercises_with_history': exercises_list,
+            'recent_activity': recent_activity
+        }
+
+def get_exercise_progression_stats(exercise_name):
+    """Devuelve series temporales de fuerza (peso máx, 1RM estimado, volumen) y desglose por serie de cada sesión."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM daily_workout_items
+            WHERE LOWER(exercise_name) = LOWER(?)
+            ORDER BY date ASC, id ASC
+        ''', (exercise_name.strip(),))
+        rows = cursor.fetchall()
+
+        sessions = []
+        pr_weight = 0.0
+        pr_volume = 0.0
+        pr_1rm = 0.0
+
+        for r in rows:
+            d = dict(r)
+            _enrich_item_with_sets(cursor, d)
+            
+            best_1rm = 0.0
+            for s in d['sets_detail']:
+                w = float(s.get('weight') or 0.0)
+                reps = _parse_reps_int(s.get('reps'), 0)
+                epley = w * (1.0 + (reps / 30.0)) if reps > 1 else w
+                if epley > best_1rm:
+                    best_1rm = epley
+
+            d['estimated_1rm'] = round(best_1rm, 1)
+            if d['max_weight'] > pr_weight:
+                pr_weight = d['max_weight']
+            if d['total_volume'] > pr_volume:
+                pr_volume = d['total_volume']
+            if d['estimated_1rm'] > pr_1rm:
+                pr_1rm = d['estimated_1rm']
+
+            sessions.append(d)
+
+        conn.commit()
+        return {
+            'exercise_name': exercise_name,
+            'prs': {
+                'max_weight': round(pr_weight, 1),
+                'max_volume': round(pr_volume, 1),
+                'max_1rm': round(pr_1rm, 1),
+                'total_sessions': len(sessions)
+            },
+            'sessions': sessions
+        }

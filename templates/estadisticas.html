@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estadísticas & Sobrecarga Progresiva — TRAINING</title>
+  <meta name="description" content="Estadísticas detalladas de fuerza, volumen por serie y sobrecarga progresiva en tu bitácora personal.">
+
+  <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Estilos CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- ==================== HEADER PRINCIPAL ==================== -->
+  <header class="app-header">
+    <div class="header-container">
+      <a href="/" class="brand-section" style="text-decoration: none;">
+        <div class="brand-icon-box">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1>TRAINING<span class="highlight">.</span></h1>
+          <p>Estadísticas & Sobrecarga Progresiva</p>
+        </div>
+      </a>
+
+      <nav class="nav-tabs">
+        <a href="/" class="nav-tab-btn" style="text-decoration: none;">
+          <i class="fa-regular fa-calendar-days"></i>
+          <span>Mi Calendario & Hoy</span>
+        </a>
+        <a href="/estadisticas" class="nav-tab-btn active" style="text-decoration: none;">
+          <i class="fa-solid fa-chart-column"></i>
+          <span>Estadísticas</span>
+        </a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="/" class="btn btn-secondary btn-sm" style="text-decoration: none;">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Volver a Entrenar</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
+  <main class="stats-page-container">
+
+    <!-- KPIs GENERALES -->
+    <div style="margin-bottom: 20px;">
+      <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--indigo-950);">
+        Resumen Global de Rendimiento
+      </h2>
+      <p style="font-size: 0.9rem; color: var(--text-muted);">
+        Métricas reales calculadas serie por serie a partir de toda tu bitácora histórica.
+      </p>
+    </div>
+
+    <section class="stats-kpi-grid">
+      <div class="stats-kpi-card">
+        <div class="stats-kpi-icon" style="background: var(--apple-50); color: var(--apple-600);">
+          <i class="fa-solid fa-calendar-check"></i>
+        </div>
+        <div>
+          <div class="stats-kpi-value" id="kpi-total-days">0</div>
+          <div class="stats-kpi-label">Días Entrenados</div>
+        </div>
+      </div>
+
+      <div class="stats-kpi-card">
+        <div class="stats-kpi-icon" style="background: var(--indigo-50); color: var(--indigo-600);">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div>
+          <div class="stats-kpi-value" id="kpi-total-sets">0</div>
+          <div class="stats-kpi-label">Series Registradas</div>
+        </div>
+      </div>
+
+      <div class="stats-kpi-card">
+        <div class="stats-kpi-icon" style="background: #fef3c7; color: #d97706;">
+          <i class="fa-solid fa-weight-hanging"></i>
+        </div>
+        <div>
+          <div class="stats-kpi-value" id="kpi-total-volume">0 kg</div>
+          <div class="stats-kpi-label">Volumen Total Levantado</div>
+        </div>
+      </div>
+
+      <div class="stats-kpi-card">
+        <div class="stats-kpi-icon" style="background: #fce7f3; color: #db2777;">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <div>
+          <div class="stats-kpi-value" id="kpi-max-pr">0 kg</div>
+          <div class="stats-kpi-label" id="kpi-pr-ex">Récord Máximo</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SELECTOR DE EJERCICIO Y PRs -->
+    <section class="chart-card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="flex: 1; min-width: 260px;">
+          <label style="display: block; font-size: 0.8rem; font-weight: 800; color: var(--indigo-950); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px;">
+            <i class="fa-solid fa-magnifying-glass-chart" style="color: var(--apple-500); margin-right: 6px;"></i>
+            Analizar Sobrecarga Progresiva de un Ejercicio:
+          </label>
+          <select id="stats-exercise-select" class="select-custom" style="width: 100%; max-width: 440px;" onchange="StatsApp.loadExerciseStats(this.value)">
+            <option value="">Cargando ejercicios con historial...</option>
+          </select>
+        </div>
+
+        <div id="ex-pr-badges" style="display: none; gap: 10px; flex-wrap: wrap;">
+          <div class="total-pill pr" style="padding: 8px 14px; font-size: 0.85rem;">
+            <i class="fa-solid fa-medal"></i> PR Peso Máx: <strong id="ex-pr-weight">0 kg</strong>
+          </div>
+          <div class="total-pill volume" style="padding: 8px 14px; font-size: 0.85rem;">
+            <i class="fa-solid fa-bolt"></i> 1RM Estimado: <strong id="ex-pr-1rm">0 kg</strong>
+          </div>
+          <div class="total-pill" style="padding: 8px 14px; font-size: 0.85rem; background: #fef3c7; color: #92400e;">
+            <i class="fa-solid fa-fire"></i> Mejor Volumen/Sesión: <strong id="ex-pr-volume">0 kg</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GRÁFICAS DE PROGRESIÓN DEL EJERCICIO -->
+    <section id="exercise-charts-section" class="charts-grid-2" style="display: none;">
+      <div class="chart-card">
+        <h3><i class="fa-solid fa-arrow-trend-up" style="color: var(--apple-500);"></i> Evolución de Fuerza (Peso Máximo y 1RM)</h3>
+        <div style="position: relative; height: 280px;">
+          <canvas id="chart-strength"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3><i class="fa-solid fa-chart-area" style="color: var(--indigo-600);"></i> Carga / Volumen Total por Sesión (Reps × Peso)</h3>
+        <div style="position: relative; height: 280px;">
+          <canvas id="chart-volume"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABLA HISTÓRICA SERIE POR SERIE -->
+    <section id="exercise-history-table-card" class="chart-card" style="margin-bottom: 24px; display: none;">
+      <h3><i class="fa-solid fa-list-check" style="color: var(--indigo-600);"></i> Bitácora Detallada Serie por Serie</h3>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.86rem; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border-light); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">
+              <th style="padding: 10px 12px;">Fecha</th>
+              <th style="padding: 10px 12px;">Detalle Exacto por Serie</th>
+              <th style="padding: 10px 12px; text-align: right;">Peso Máx</th>
+              <th style="padding: 10px 12px; text-align: right;">Volumen Total</th>
+              <th style="padding: 10px 12px; text-align: center;">Progreso</th>
+            </tr>
+          </thead>
+          <tbody id="stats-sessions-tbody">
+            <!-- Filas renderizadas por JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ESTADO VACÍO SI AÚN NO HAY DATOS -->
+    <section id="stats-empty-state" class="chart-card" style="text-align: center; padding: 48px 20px; display: none;">
+      <div class="empty-icon-circle" style="margin: 0 auto 14px;">
+        <i class="fa-solid fa-chart-line"></i>
+      </div>
+      <h3 style="justify-content: center;">Aún no hay entrenamientos registrados</h3>
+      <p style="color: var(--text-muted); max-width: 480px; margin: 8px auto 20px;">
+        Agrega ejercicios a cualquier día en tu calendario y registra tus series, repeticiones y pesos. Aquí verás automáticamente tus curvas de fuerza y volumen.
+      </p>
+      <a href="/" class="btn btn-apple" style="text-decoration: none;">
+        <i class="fa-solid fa-calendar-plus"></i> Ir a Registrar mi Primer Entrenamiento
+      </a>
+    </section>
+
+    <!-- ACTIVIDAD RECIENTE GLOBAL -->
+    <section class="chart-card" id="recent-activity-card" style="display: none;">
+      <h3><i class="fa-solid fa-chart-simple" style="color: var(--apple-500);"></i> Volumen Total Entrenado — Últimas 14 Sesiones</h3>
+      <div style="position: relative; height: 240px;">
+        <canvas id="chart-recent-activity"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/js/stats.js"></script>
+</body>
+</html>

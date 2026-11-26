@@ -51,10 +51,15 @@
         </button>
 
         <button type="button" class="nav-tab-btn" data-tab="bitacora" onclick="TrainingApp.switchTab('bitacora')">
-          <i class="fa-solid fa-chart-line"></i>
+          <i class="fa-solid fa-clock-rotate-left"></i>
           <span>Bitácora & Progreso</span>
           <span class="badge-pill" id="badge-logbook-count">0</span>
         </button>
+
+        <a href="/estadisticas" class="nav-tab-btn" style="text-decoration: none;">
+          <i class="fa-solid fa-chart-column"></i>
+          <span>Estadísticas</span>
+        </a>
       </nav>
 
       <!-- Botones de Acción Rápida -->
@@ -306,18 +311,38 @@
           <textarea id="form-ex-desc" class="form-textarea" rows="3" placeholder="Describe la técnica, postura o notas para cuando lo hagas (opcional)..."></textarea>
         </div>
 
-        <div class="form-row-3">
+        <div class="form-row-2">
           <div class="form-group">
-            <label>Series Sugeridas</label>
-            <input type="number" id="form-ex-sets" class="form-input" value="4" min="1" max="20">
+            <label>Cantidad de Series (Carga Progresiva)</label>
+            <input type="number" id="form-ex-sets" class="form-input" value="4" min="1" max="20" oninput="TrainingApp.renderLibraryTemplateSets()">
           </div>
           <div class="form-group">
-            <label>Reps Sugeridas</label>
-            <input type="text" id="form-ex-reps" class="form-input" value="10-12">
+            <label>Unidad de Carga</label>
+            <select id="form-ex-unit" class="form-input" onchange="TrainingApp.renderLibraryTemplateSets()">
+              <option value="kg">Kilogramos (kg)</option>
+              <option value="bolso kg">Bolso con peso (kg)</option>
+              <option value="lastre kg">Lastre (kg)</option>
+              <option value="lbs">Libras (lbs)</option>
+              <option value="peso corporal">Peso corporal</option>
+            </select>
           </div>
-          <div class="form-group">
-            <label>Peso Sugerido (kg)</label>
-            <input type="number" step="0.5" id="form-ex-weight" class="form-input" value="0">
+        </div>
+
+        <div class="form-group">
+          <label style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Detalle por Serie (Repeticiones, Peso y Carga)</span>
+            <span id="form-ex-total-volume-badge" style="font-size: 0.75rem; color: var(--indigo-600); font-weight: 800;">Volumen total: 0 kg</span>
+          </label>
+          <div class="modal-sets-box">
+            <div style="display: grid; grid-template-columns: 65px 1fr 1fr 90px; gap: 8px; font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">
+              <div>Serie</div>
+              <div>Reps</div>
+              <div>Peso</div>
+              <div style="text-align: center;">Carga</div>
+            </div>
+            <div id="form-ex-template-sets-container">
+              <!-- Filas generadas dinámicamente según el número de series -->
+            </div>
           </div>
         </div>
 
